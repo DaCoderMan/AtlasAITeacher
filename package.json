@@ -1,0 +1,12 @@
+{
+  "name": "atlas-ai-teacher",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "check": "node --check api/project-x-sync.js && node --check lib/project-x-sync.js"
+  },
+  "dependencies": {
+    "pg": "^8.13.1"
+  }
+}
