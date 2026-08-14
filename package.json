@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "check": "node --check api/project-x-sync.js && node --check api/ingest.js && node --check api/ingest-batch.js && node --check api/enqueue.js && node --check api/worker.js && node --check api/reconcile.js && node --check lib/project-x-sync.js && node --check lib/ingestion.js && node --check lib/adapters.js && node --check lib/atlas-store.js && node --check lib/policy-engine.js && node --check lib/auto-ingest.js && node --check lib/route-executor.js && node --check lib/reconciliation.js && node --check mcp/server.js && node --check scripts/atlas-daemon.js && node --check scripts/watch-dropbox.js",
+    "check": "node --check api/project-x-sync.js && node --check api/ingest.js && node --check api/ingest-batch.js && node --check api/enqueue.js && node --check api/worker.js && node --check api/reconcile.js && node --check api/source-events.js && node --check lib/project-x-sync.js && node --check lib/ingestion.js && node --check lib/adapters.js && node --check lib/atlas-store.js && node --check lib/policy-engine.js && node --check lib/auto-ingest.js && node --check lib/route-executor.js && node --check lib/reconciliation.js && node --check mcp/server.js && node --check scripts/atlas-daemon.js && node --check scripts/watch-dropbox.js",
     "test": "node --test tests/*.test.js",
     "ci": "npm run check && npm test",
     "mcp:atlas": "node mcp/server.js",
