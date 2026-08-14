@@ -17,6 +17,8 @@ ChatGPT cannot connect directly to the local stdio server. Atlas now supports a 
 
 ChatGPT developer-mode apps support OAuth authentication. For durable connectivity, configure the authorization server to issue refresh tokens; OpenID Connect providers should advertise and honor `offline_access` where appropriate.
 
+Current ChatGPT plan/workspace capabilities can differ. When the ChatGPT environment only supports read/fetch custom MCP access, set `ATLAS_MCP_REMOTE_READ_ONLY=true` on the dedicated remote deployment. Atlas then omits mutation tools from `tools/list` and blocks direct mutation calls before dispatch, while the local stdio server and full-capability deployments remain unchanged.
+
 ## Authentication modes
 
 Atlas keeps three explicit boundaries:
@@ -59,6 +61,7 @@ Optional:
 - `ATLAS_MCP_OAUTH_AUTHORIZATION_SERVER` — override the authorization-server identifier advertised in protected-resource metadata when it differs from the token issuer URL. For Auth0, this normally matches the issuer/custom-domain base URL.
 - `ATLAS_MCP_RESOURCE_URL` — override the canonical protected resource URL.
 - `ATLAS_MCP_RESOURCE_METADATA_URL` — override the RFC 9728 metadata URL.
+- `ATLAS_MCP_REMOTE_READ_ONLY=true` — expose only read-only tools on the remote HTTP MCP surface. Useful for ChatGPT plans/workspaces that currently allow custom MCP read/fetch but not writes.
 - `ATLAS_MCP_SECRET` — legacy bearer secret for compatible non-ChatGPT clients.
 - `ATLAS_MCP_ALLOW_UNAUTHENTICATED=true` — tunnel/private-boundary use only.
 
@@ -72,7 +75,7 @@ Do not commit secrets or raw access/refresh tokens.
 4. Enable Developer Mode in ChatGPT.
 5. Create the custom app with the stable Atlas `/api/mcp` endpoint and select OAuth authentication.
 6. Complete authorization, scan tools, then test safe reads first.
-7. Enable/test mutation tools only when the ChatGPT plan/workspace and Atlas scopes permit them.
+7. Enable/test mutation tools only when the ChatGPT plan/workspace and Atlas scopes permit them. Until then, use `ATLAS_MCP_REMOTE_READ_ONLY=true` on the remote deployment.
 
 Secure MCP Tunnel remains an alternative when Atlas runs locally or on a private network.
 
@@ -124,6 +127,7 @@ Atlas environment mapping:
 - OAuth JWTs are validated for issuer, audience, signature, expiry and scope.
 - Unknown signing keys and unsupported JWT algorithms are rejected.
 - `atlas.write` is distinct from `atlas.read`.
+- `ATLAS_MCP_REMOTE_READ_ONLY=true` is an additional deployment-level deny boundary, not a substitute for OAuth scopes.
 - Public unauthenticated MCP is not an allowed production default.
 - The existing hourly `project-x-sync` cron must not be removed merely to deploy MCP.
 
@@ -144,7 +148,8 @@ Then verify:
 - unauthenticated `POST /api/mcp` returns `401` plus `WWW-Authenticate`
 - valid `atlas.read` token can initialize/list/read
 - read-only token receives `403` for mutation tools
-- valid `atlas.write` token can reach mutation dispatch
+- with `ATLAS_MCP_REMOTE_READ_ONLY=true`, mutation tools are not advertised and direct mutation calls receive `403 remote_read_only`
+- valid `atlas.write` token can reach mutation dispatch when remote read-only mode is disabled
 - legacy `ATLAS_MCP_SECRET` still works
 - local `node mcp/server.js` behavior is unchanged
 - the dedicated `apps/atlas-mcp/vercel.json` has no `crons` entry
