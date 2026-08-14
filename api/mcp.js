@@ -31,6 +31,16 @@ function isMutationTool(name) {
   return Boolean(definition && definition.annotations?.readOnlyHint === false);
 }
 
+function remoteReadOnlyEnabled() {
+  return process.env.ATLAS_MCP_REMOTE_READ_ONLY === 'true';
+}
+
+function exposedToolDefinitions() {
+  return remoteReadOnlyEnabled()
+    ? toolDefinitions.filter(tool => tool.annotations?.readOnlyHint !== false)
+    : toolDefinitions;
+}
+
 function authFailure(req, res, auth) {
   if (oauthEnabled()) setOAuthChallenge(req, res, { scope: 'atlas.read', error: 'invalid_token' });
   return res.status(auth?.status || 401).json(rpcError(null, -32001, auth?.reason || 'unauthorized'));
@@ -52,7 +62,9 @@ export default async function handler(req, res) {
       protocolVersion: MCP_LATEST_PROTOCOL_VERSION,
       oauth: oauthEnabled(),
       legacyBearer: Boolean(process.env.ATLAS_MCP_SECRET),
-      tunnelUnauthenticated: process.env.ATLAS_MCP_ALLOW_UNAUTHENTICATED === 'true'
+      tunnelUnauthenticated: process.env.ATLAS_MCP_ALLOW_UNAUTHENTICATED === 'true',
+      remoteReadOnly: remoteReadOnlyEnabled(),
+      exposedToolCount: exposedToolDefinitions().length
     });
   }
 
@@ -80,7 +92,9 @@ export default async function handler(req, res) {
       protocolVersion: negotiated,
       capabilities: { tools: { listChanged: false } },
       serverInfo: { name: 'atlas', title: 'Atlas AI Operating System', version: '2.0.0' },
-      instructions: 'Atlas is the canonical project-aware orchestration, context, persistence, planning, QA and ingestion gateway. OAuth clients should request atlas.read; mutation tools additionally require atlas.write.'
+      instructions: remoteReadOnlyEnabled()
+        ? 'Atlas is running in remote read-only mode. Use Atlas for canonical project context, planning, health, search and status; mutation tools are intentionally not exposed.'
+        : 'Atlas is the canonical project-aware orchestration, context, persistence, planning, QA and ingestion gateway. OAuth clients should request atlas.read; mutation tools additionally require atlas.write.'
     }));
   }
 
@@ -101,13 +115,16 @@ export default async function handler(req, res) {
       setOAuthChallenge(req, res, { scope: 'atlas.read', error: 'insufficient_scope' });
       return res.status(403).json(rpcError(message.id, -32003, 'insufficient_scope'));
     }
-    return res.status(200).json(rpcResult(message.id, { tools: toolDefinitions }));
+    return res.status(200).json(rpcResult(message.id, { tools: exposedToolDefinitions() }));
   }
 
   if (message.method === 'tools/call') {
     const toolName = message.params?.name;
     const definition = toolDefinitions.find(tool => tool.name === toolName);
     if (!definition) return res.status(200).json(rpcError(message.id, -32602, `Unknown tool: ${toolName || ''}`));
+    if (remoteReadOnlyEnabled() && definition.annotations?.readOnlyHint === false) {
+      return res.status(403).json(rpcError(message.id, -32003, 'remote_read_only'));
+    }
     const requiredScope = isMutationTool(toolName) ? 'atlas.write' : 'atlas.read';
     if (auth.mode === 'oauth' && !requireScope(auth, requiredScope)) {
       setOAuthChallenge(req, res, { scope: requiredScope, error: 'insufficient_scope' });
