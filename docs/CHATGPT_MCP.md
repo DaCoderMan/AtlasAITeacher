@@ -1,40 +1,93 @@
-# Atlas MCP for ChatGPT
+# ChatGPT remote MCP
 
-Atlas now supports two MCP transports over the same semantic tool surface:
-
-- local stdio MCP (`mcp/server.js`) for Codex on the Atlas host;
-- remote HTTP MCP (`/api/mcp`) for ChatGPT/OpenAI products.
+Atlas supports local stdio MCP and remote HTTPS MCP over the same semantic tool surface.
 
 ## ChatGPT requirement
 
-ChatGPT cannot connect directly to the local stdio server. Use OpenAI Secure MCP Tunnel for the current Atlas implementation when you need ChatGPT access without exposing Atlas publicly.
+ChatGPT cannot connect directly to the local stdio server. Atlas now supports a standards-based OAuth resource-server path for public `/api/mcp` deployments, while Secure MCP Tunnel remains suitable for private/local deployments.
 
-A deployed HTTPS `/api/mcp` endpoint is still useful for non-ChatGPT remote MCP clients and for authenticated smoke tests. For ChatGPT developer-mode apps, the official supported authentication modes are OAuth, No Authentication, and Mixed Authentication; ChatGPT does not send a custom static bearer secret for MCP apps. Atlas currently does not implement OAuth for `/api/mcp`, so a bearer-protected public endpoint should not be treated as a directly installable ChatGPT app.
+ChatGPT developer-mode apps support OAuth authentication. For durable connectivity, configure the authorization server to issue refresh tokens; OpenID Connect providers should advertise and honor `offline_access` where appropriate.
 
-## Security
+## Authentication modes
 
-Public hosting fails closed unless `ATLAS_MCP_SECRET` is configured. The endpoint expects `Authorization: Bearer <ATLAS_MCP_SECRET>` for direct HTTP clients and smoke tests.
+Atlas keeps three explicit boundaries:
 
-For a private Secure MCP Tunnel deployment, `ATLAS_MCP_ALLOW_UNAUTHENTICATED=true` may be used only when the tunnel itself provides the trusted boundary. Never enable this on a public endpoint.
+1. **OAuth (recommended for public ChatGPT MCP):** configure `ATLAS_MCP_OAUTH_ISSUER`, `ATLAS_MCP_OAUTH_AUDIENCE`, and `ATLAS_MCP_OAUTH_JWKS_URL`. Atlas validates RS256 JWT access tokens for issuer, audience, signature, expiration and scopes.
+2. **Legacy static bearer:** `ATLAS_MCP_SECRET` remains supported for direct HTTP clients and smoke tests. This is not the ChatGPT app OAuth flow.
+3. **Tunnel-only unauthenticated mode:** `ATLAS_MCP_ALLOW_UNAUTHENTICATED=true` is permitted only behind Secure MCP Tunnel or another trusted private boundary. Never enable it on a public endpoint.
+
+OAuth and the legacy static bearer path may coexist during migration.
+
+## OAuth discovery
+
+The public deployment exposes RFC 9728 Protected Resource Metadata at:
+
+`/.well-known/oauth-protected-resource`
+
+It advertises the MCP resource and `authorization_servers`. Unauthorized OAuth requests receive `401` with a `WWW-Authenticate: Bearer` challenge containing the `resource_metadata` URL.
+
+The authorization server itself is external/provider-independent and must expose OAuth Authorization Server Metadata or compatible OIDC discovery. It must implement Authorization Code + PKCE for interactive ChatGPT authorization and support refresh tokens for durable access.
+
+## Scopes
+
+- `atlas.read` — MCP discovery and read operations.
+- `atlas.write` — mutation operations. OAuth mutation calls require this scope.
+- `offline_access` — request at the authorization server when its refresh-token model uses this OIDC scope.
+
+Atlas validates that OAuth JWTs are issued for `ATLAS_MCP_OAUTH_AUDIENCE`; tokens for another resource are rejected.
+
+## Environment variables
+
+Required for OAuth mode:
+
+- `ATLAS_MCP_OAUTH_ISSUER` — exact token issuer / authorization-server identifier.
+- `ATLAS_MCP_OAUTH_AUDIENCE` — exact audience for Atlas MCP, normally the canonical `https://.../api/mcp` URL.
+- `ATLAS_MCP_OAUTH_JWKS_URL` — HTTPS JWKS endpoint used to verify RS256 access-token signatures.
+
+Optional:
+
+- `ATLAS_MCP_RESOURCE_URL` — override the canonical protected resource URL.
+- `ATLAS_MCP_RESOURCE_METADATA_URL` — override the RFC 9728 metadata URL.
+- `ATLAS_MCP_SECRET` — legacy bearer secret for compatible non-ChatGPT clients.
+- `ATLAS_MCP_ALLOW_UNAUTHENTICATED=true` — tunnel/private-boundary use only.
+
+Do not commit secrets or raw access/refresh tokens.
 
 ## ChatGPT setup
 
-1. Deploy Atlas with `DATABASE_URL` and `ATLAS_USER_ID` configured.
-2. If using Secure MCP Tunnel, run Atlas locally or privately and set `ATLAS_MCP_ALLOW_UNAUTHENTICATED=true` only for the tunnel-bound process.
-3. If using public HTTPS only, keep `ATLAS_MCP_SECRET` configured and treat `/api/mcp` as a secured non-ChatGPT endpoint until OAuth is added.
+1. Deploy Atlas over HTTPS without removing or altering the existing `project-x-sync` scheduling behavior.
+2. Configure the OAuth issuer/audience/JWKS environment variables.
+3. Configure an OAuth/OIDC authorization server that supports Authorization Code + PKCE and refresh tokens.
 4. Enable Developer Mode in ChatGPT.
-5. For ChatGPT app registration today, choose Secure MCP Tunnel and select the Atlas tunnel.
-6. Scan tools and verify Atlas tools are discovered.
-7. Run safe read tests: `atlas_status`, `atlas_projects`, `atlas_tasks`, `atlas_context`, and `atlas_search`.
+5. Create the custom app with the stable Atlas `/api/mcp` endpoint and select OAuth authentication.
+6. Complete authorization, scan tools, then test safe reads first.
+7. Enable/test mutation tools only when the ChatGPT plan/workspace and Atlas scopes permit them.
 
-Plan restrictions matter: current ChatGPT Pro custom MCP access is read/fetch only. Full write/modify MCP is currently available to Business and Enterprise/Edu workspaces. Atlas keeps write tools defined for compatible clients and future plan upgrades, while read tools remain immediately useful on Pro.
+Secure MCP Tunnel remains an alternative when Atlas runs locally or on a private network.
 
-## Automatic conversation ingestion
+## Security
 
-An MCP app gives ChatGPT access to Atlas tools; it does not create a guaranteed product-level firehose of every ChatGPT or Voice session. Automatic ingestion therefore uses the best available supported path:
+- Access tokens are never accepted from the query string.
+- OAuth JWTs are validated for issuer, audience, signature, expiry and scope.
+- Unknown signing keys and unsupported JWT algorithms are rejected.
+- `atlas.write` is distinct from `atlas.read`.
+- Public unauthenticated MCP is not an allowed production default.
+- The existing hourly `project-x-sync` cron must not be removed merely to deploy MCP.
 
-- meaningful conversations can call `atlas_enqueue` / `atlas_ingest` when tool permissions allow;
-- accessible ChatGPT/Voice transcripts can be posted to `/api/source-events` with source type `chatgpt` or `chatgpt_voice`;
-- periodic exports/imports can be dropped into the Atlas Inbox as a reconciliation fallback.
+## Validation
 
-Raw ChatGPT Voice audio must not be assumed accessible. Atlas ingests transcript/session records when an upstream source provides them.
+Run:
+
+```bash
+npm run ci
+```
+
+Then verify:
+
+- `GET /.well-known/oauth-protected-resource`
+- unauthenticated `POST /api/mcp` returns `401` plus `WWW-Authenticate`
+- valid `atlas.read` token can initialize/list/read
+- read-only token receives `403` for mutation tools
+- valid `atlas.write` token can reach mutation dispatch
+- legacy `ATLAS_MCP_SECRET` still works
+- local `node mcp/server.js` behavior is unchanged

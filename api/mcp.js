@@ -1,11 +1,10 @@
 import { toolDefinitions, dispatchTool } from '../mcp/server.js';
-
-function authorized(req) {
-  if (process.env.ATLAS_MCP_ALLOW_UNAUTHENTICATED === 'true') return true;
-  const expected = process.env.ATLAS_MCP_SECRET;
-  if (!expected) return false;
-  return (req.headers?.authorization || '') === `Bearer ${expected}`;
-}
+import {
+  authenticateMcpRequest,
+  oauthEnabled,
+  requireScope,
+  setOAuthChallenge
+} from '../lib/mcp-auth.js';
 
 function rpcResult(id, result) {
   return { jsonrpc: '2.0', id, result };
@@ -22,6 +21,24 @@ function toolResult(value) {
   };
 }
 
+function isMutationTool(name) {
+  return new Set([
+    'atlas_remember',
+    'atlas_task_create',
+    'atlas_task_update',
+    'atlas_project_create',
+    'atlas_project_update',
+    'atlas_ingest',
+    'atlas_ingest_batch',
+    'atlas_reconcile'
+  ]).has(name);
+}
+
+function authFailure(req, res, auth) {
+  if (oauthEnabled()) setOAuthChallenge(req, res, { scope: 'atlas.read', error: 'invalid_token' });
+  return res.status(auth?.status || 401).json(rpcError(null, -32001, auth?.reason || 'unauthorized'));
+}
+
 export default async function handler(req, res) {
   res.setHeader('Cache-Control', 'no-store');
   res.setHeader('MCP-Protocol-Version', '2025-06-18');
@@ -31,8 +48,10 @@ export default async function handler(req, res) {
       ok: true,
       service: 'atlas-mcp',
       transport: 'streamable-http-json',
-      version: '1.2.0',
-      authenticated: Boolean(process.env.ATLAS_MCP_SECRET) && process.env.ATLAS_MCP_ALLOW_UNAUTHENTICATED !== 'true'
+      version: '1.3.0',
+      oauth: oauthEnabled(),
+      legacyBearer: Boolean(process.env.ATLAS_MCP_SECRET),
+      tunnelUnauthenticated: process.env.ATLAS_MCP_ALLOW_UNAUTHENTICATED === 'true'
     });
   }
 
@@ -41,10 +60,8 @@ export default async function handler(req, res) {
     return res.status(405).json(rpcError(null, -32600, 'method_not_allowed'));
   }
 
-  if (!process.env.ATLAS_MCP_SECRET && process.env.ATLAS_MCP_ALLOW_UNAUTHENTICATED !== 'true') {
-    return res.status(503).json(rpcError(null, -32001, 'atlas_mcp_secret_not_configured'));
-  }
-  if (!authorized(req)) return res.status(401).json(rpcError(null, -32001, 'unauthorized'));
+  const auth = await authenticateMcpRequest(req);
+  if (!auth.ok && auth.mode !== 'tunnel') return authFailure(req, res, auth);
 
   let message;
   try {
@@ -58,25 +75,34 @@ export default async function handler(req, res) {
   }
 
   if (message.method === 'notifications/initialized') return res.status(204).end();
-
   if (message.method === 'ping') return res.status(200).json(rpcResult(message.id, {}));
 
   if (message.method === 'initialize') {
     return res.status(200).json(rpcResult(message.id, {
       protocolVersion: message.params?.protocolVersion || '2025-06-18',
       capabilities: { tools: { listChanged: false } },
-      serverInfo: { name: 'atlas', version: '1.2.0' },
-      instructions: 'Atlas is the canonical personal context and automatic-ingestion gateway. Use read tools for current state. Mutating tools may be unavailable depending on the ChatGPT plan and app permissions.'
+      serverInfo: { name: 'atlas', version: '1.3.0' },
+      instructions: 'Atlas is the canonical personal context and automatic-ingestion gateway. OAuth clients should request atlas.read; mutation tools additionally require atlas.write.'
     }));
   }
 
   if (message.method === 'tools/list') {
+    if (!requireScope(auth, 'atlas.read') && auth.mode === 'oauth') {
+      setOAuthChallenge(req, res, { scope: 'atlas.read', error: 'insufficient_scope' });
+      return res.status(403).json(rpcError(message.id, -32003, 'insufficient_scope'));
+    }
     return res.status(200).json(rpcResult(message.id, { tools: toolDefinitions }));
   }
 
   if (message.method === 'tools/call') {
+    const toolName = message.params?.name;
+    const requiredScope = isMutationTool(toolName) ? 'atlas.write' : 'atlas.read';
+    if (auth.mode === 'oauth' && !requireScope(auth, requiredScope)) {
+      setOAuthChallenge(req, res, { scope: requiredScope, error: 'insufficient_scope' });
+      return res.status(403).json(rpcError(message.id, -32003, 'insufficient_scope'));
+    }
     try {
-      const value = await dispatchTool(message.params?.name, message.params?.arguments || {});
+      const value = await dispatchTool(toolName, message.params?.arguments || {});
       return res.status(200).json(rpcResult(message.id, toolResult(value)));
     } catch (error) {
       return res.status(200).json(rpcResult(message.id, {

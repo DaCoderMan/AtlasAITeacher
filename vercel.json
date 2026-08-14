@@ -1,4 +1,10 @@
 {
+  "rewrites": [
+    {
+      "source": "/.well-known/oauth-protected-resource",
+      "destination": "/api/oauth-protected-resource"
+    }
+  ],
   "crons": [
     {
       "path": "/api/project-x-sync",
