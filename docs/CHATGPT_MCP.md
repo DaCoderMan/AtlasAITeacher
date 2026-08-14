@@ -44,6 +44,7 @@ The authorization server itself is external/provider-independent and must expose
 
 - `atlas.read` — MCP discovery and read operations.
 - `atlas.write` — mutation operations. OAuth mutation calls require this scope.
+- `atlas_update_task` is the controlled task mutation surface; it does not expose raw SQL, shell, or unrestricted update fields.
 - `offline_access` — request at the authorization server when its refresh-token model uses this OIDC scope.
 
 Atlas validates that OAuth JWTs are issued for `ATLAS_MCP_OAUTH_AUDIENCE`; tokens for another resource are rejected.

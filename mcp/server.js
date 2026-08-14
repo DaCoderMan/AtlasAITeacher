@@ -9,6 +9,7 @@ import {
   atlasProjects,
   atlasTasks,
   atlasCreateTask,
+  atlasUpdateTask,
   atlasUpdateProject,
   atlasRemember,
   closeAtlasStorePool
@@ -112,6 +113,7 @@ export const toolDefinitions = [
   { name: 'atlas_reconcile', description: 'Reconcile automation, recover deterministic stale work, surface degraded sources/routes, and record duplicate/conflict candidates.', inputSchema: { type: 'object', properties: { staleSourceMinutes: { type: 'integer', minimum: 5, maximum: 10080 }, repair: { type: 'boolean' } }, additionalProperties: false }, annotations: WRITE_SAFE },
   { name: 'atlas_remember', description: 'Submit durable information to Atlas for classification, deduplication, provenance and canonical routing.', inputSchema: { type: 'object', properties: { text: { type: 'string' }, project_hint: { type: 'string' }, sensitivity: { type: 'string' }, source: { type: 'string' } }, required: ['text'], additionalProperties: false }, annotations: WRITE_SAFE },
   { name: 'atlas_create_task', description: 'Create a canonical Atlas task through the controlled storage gateway.', inputSchema: { type: 'object', properties: { title: { type: 'string' }, description: { type: 'string' }, project_id: { type: 'string' }, priority: { type: 'integer', minimum: 1, maximum: 5 }, due_at: { type: 'string' } }, required: ['title'], additionalProperties: false }, annotations: WRITE_SAFE },
+  { name: 'atlas_update_task', description: 'Update a canonical Atlas task through the controlled storage gateway. Omitted fields are preserved; nullable fields can be cleared with null.', inputSchema: { type: 'object', properties: { task_id: { type: 'string' }, title: { type: ['string','null'] }, description: { type: ['string','null'] }, status: { type: 'string', enum: ['pending', 'in_progress', 'done', 'waiting', 'cancelled'] }, priority: { type: 'integer', minimum: 1, maximum: 5 }, project_id: { type: ['string','null'] }, due_at: { type: ['string','null'] }, scheduled_start: { type: ['string','null'] }, scheduled_end: { type: ['string','null'] }, blocker: { type: ['string','null'] } }, required: ['task_id'], additionalProperties: false }, annotations: WRITE_SAFE },
   { name: 'atlas_update_project', description: 'Update an existing canonical Atlas project without bypassing storage and ingestion rules.', inputSchema: { type: 'object', properties: { project_id: { type: 'string' }, status: { type: 'string' }, priority: { type: 'integer', minimum: 1, maximum: 5 }, next_action: { type: ['string','null'] }, blockers: { type: ['string','null'] }, objective: { type: ['string','null'] } }, required: ['project_id'], additionalProperties: false }, annotations: WRITE_SAFE }
 ];
 
@@ -156,6 +158,7 @@ export async function dispatchTool(name, args = {}) {
     case 'atlas_reconcile': return reconcileAtlas({ staleSourceMinutes: args.staleSourceMinutes || 180, repair: args.repair !== false });
     case 'atlas_remember': return atlasRemember(args);
     case 'atlas_create_task': return atlasCreateTask(args);
+    case 'atlas_update_task': return atlasUpdateTask(args);
     case 'atlas_update_project': return atlasUpdateProject(args);
     default: throw new Error(`Unknown tool: ${name}`);
   }

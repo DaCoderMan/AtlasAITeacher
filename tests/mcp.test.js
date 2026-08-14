@@ -11,7 +11,7 @@ const EXPECTED = [
   'atlas_today', 'atlas_today_record', 'atlas_dashboard', 'atlas_control_plane_activity',
   'atlas_critic_qa', 'atlas_critic_qa_record',
   'atlas_ingest', 'atlas_enqueue', 'atlas_automation_status', 'atlas_run_worker',
-  'atlas_retry_routes', 'atlas_reconcile', 'atlas_remember', 'atlas_create_task', 'atlas_update_project'
+  'atlas_retry_routes', 'atlas_reconcile', 'atlas_remember', 'atlas_create_task', 'atlas_update_task', 'atlas_update_project'
 ];
 
 test('Atlas MCP exposes the expected controlled tool surface', () => {
@@ -29,6 +29,14 @@ test('read tools are annotated read-only and write/automation tools are not', ()
     assert.equal(tool.annotations.readOnlyHint, read.has(tool.name), tool.name);
     assert.equal(tool.annotations.destructiveHint, false, tool.name);
   }
+});
+
+test('task update is write-scoped and exposes only controlled fields', () => {
+  const tool = toolDefinitions.find(item => item.name === 'atlas_update_task');
+  assert.equal(tool.annotations.readOnlyHint, false);
+  assert.deepEqual(tool.inputSchema.required, ['task_id']);
+  assert.equal(tool.inputSchema.additionalProperties, false);
+  assert.equal(tool.inputSchema.properties.sql, undefined);
 });
 
 test('Atlas MCP does not expose raw SQL or shell tools', () => {

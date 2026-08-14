@@ -15,6 +15,7 @@ Write:
 - `atlas_ingest`
 - `atlas_remember`
 - `atlas_create_task`
+- `atlas_update_task`
 - `atlas_update_project`
 
 ## Run locally
@@ -45,7 +46,7 @@ Keep secrets out of Git. Prefer environment/secret management on the machine run
 
 1. Before significant Atlas/project work, call `atlas_context` with the project or goal.
 2. Use `atlas_search`, `atlas_projects`, and `atlas_tasks` for canonical reads instead of guessing state.
-3. Use `atlas_create_task` and `atlas_update_project` instead of direct SQL.
+3. Use `atlas_create_task`, `atlas_update_task`, and `atlas_update_project` instead of direct SQL.
 4. After meaningful decisions, progress, or new durable information, call `atlas_ingest` or `atlas_remember`.
 5. Do not send casual/transient content solely to create memory; Atlas Universal Ingestion performs classification and routing.
 6. Treat write tools as mutations that may affect canonical state.
@@ -53,6 +54,8 @@ Keep secrets out of Git. Prefer environment/secret management on the machine run
 ## Security boundary
 
 The MCP server intentionally does not expose arbitrary SQL, shell execution, raw credentials, or unrestricted connector calls. Codex operates through semantic Atlas actions, preserving Atlas policy, provenance, deduplication, and auditability.
+
+`atlas_update_task` accepts only the canonical task fields (title, description, status, priority, project, due date, schedule, and blocker). Omitted fields are preserved; nullable fields can be cleared with `null`. The operation enforces user ownership, rejects deleted tasks, validates status/priority/timestamps, and records the mutation through Universal Ingestion.
 
 ## Validation
 
