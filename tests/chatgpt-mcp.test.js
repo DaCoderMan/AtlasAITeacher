@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import handler from '../api/mcp.js';
+import handler, { structuredToolContent } from '../api/mcp.js';
 import protectedResourceHandler from '../api/oauth-protected-resource.js';
 import { toolDefinitions } from '../mcp/server.js';
 
@@ -16,6 +16,17 @@ function mockResponse() {
     end() { return this; }
   };
 }
+
+test('remote MCP wraps list tool structured content in objects for ChatGPT validation', () => {
+  const projects = [{ id: 'p1' }];
+  const tasks = [{ id: 't1' }];
+  const manifests = [{ id: 'm1' }];
+
+  assert.deepEqual(structuredToolContent('atlas_projects', projects), { projects });
+  assert.deepEqual(structuredToolContent('atlas_tasks', tasks), { tasks });
+  assert.deepEqual(structuredToolContent('atlas_manifests', manifests), { manifests });
+  assert.deepEqual(structuredToolContent('atlas_manifests', manifests[0]), manifests[0]);
+});
 
 async function call(body) {
   const req = { method: 'POST', headers: {}, body };

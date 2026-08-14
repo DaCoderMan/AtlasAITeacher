@@ -20,10 +20,17 @@ function rpcError(id, code, message, data = undefined) {
   return { jsonrpc: '2.0', id: id ?? null, error: { code, message, ...(data === undefined ? {} : { data }) } };
 }
 
-function toolResult(value) {
+export function structuredToolContent(toolName, value) {
+  if (toolName === 'atlas_projects' && Array.isArray(value)) return { projects: value };
+  if (toolName === 'atlas_tasks' && Array.isArray(value)) return { tasks: value };
+  if (toolName === 'atlas_manifests' && Array.isArray(value)) return { manifests: value };
+  return value && typeof value === 'object' ? value : { value };
+}
+
+function toolResult(toolName, value) {
   return {
     content: [{ type: 'text', text: JSON.stringify(value, null, 2) }],
-    structuredContent: value && typeof value === 'object' ? value : { value }
+    structuredContent: structuredToolContent(toolName, value)
   };
 }
 
@@ -133,7 +140,7 @@ export default async function handler(req, res) {
     }
     try {
       const value = await dispatchTool(toolName, message.params?.arguments || {});
-      return res.status(200).json(rpcResult(message.id, toolResult(value)));
+      return res.status(200).json(rpcResult(message.id, toolResult(toolName, value)));
     } catch (error) {
       return res.status(200).json(rpcResult(message.id, {
         isError: true,
