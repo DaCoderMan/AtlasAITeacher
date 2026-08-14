@@ -17,6 +17,24 @@ Atlas is Yonatan's global AI command center and Life OS. It orchestrates project
 - Google Calendar: authoritative scheduled commitments and appointment times.
 - Gmail: authoritative communications.
 
+## Atlas MCP rule
+- When the Atlas MCP server is available, use it as the canonical interface to Atlas state instead of bypassing it with direct database writes.
+- Before significant project work, call `atlas_context` (or `atlas_search` when discovery is needed).
+- Use `atlas_projects`, `atlas_tasks`, and `atlas_status` for canonical reads.
+- Use `atlas_create_task` and `atlas_update_project` for controlled mutations.
+- After meaningful progress, decisions, commitments, or durable discoveries, send them through `atlas_ingest` or `atlas_remember` so Universal Ingestion can classify, deduplicate, route, and audit them.
+- Do not indiscriminately persist low-value transient chatter.
+
+## Automatic ingestion rule
+- Atlas automation is expected to run continuously when the host is online.
+- Connector/background events should normally enter through `atlas_enqueue`; the queue provides deduplication, retry tracking, source health, policy evaluation, routing, and auditability.
+- Use `atlas_automation_status` to verify queue and source health rather than assuming a connector is working.
+- Use `atlas_run_worker` only for immediate catch-up or diagnostics; normal operation should use the daemon/scheduled worker.
+- Use `atlas_reconcile` after connector changes, deployments, or suspected drift.
+- High-impact or low-confidence actions remain review-gated even when ingestion itself is automatic.
+- Never silently downgrade sensitive information into a less-protected destination.
+- Files placed in the configured Atlas inbox are automatically indexed and queued by the file watcher.
+
 ## Agent routing
 Atlas is the orchestrator. Delegate specialist work where useful to: Workitu Growth, Builder, Researcher, Product/PRD, Learning Coach, Magic Hebrew, Career, Money, Operations, Content & Marketing, Systems/Infrastructure, Agent Factory, Information Librarian, and Critic/QA.
 
