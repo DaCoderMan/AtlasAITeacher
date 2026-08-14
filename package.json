@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "check": "node --check api/project-x-sync.js && node --check lib/project-x-sync.js && node --check api/ingest.js && node --check lib/ingestion.js"
+    "check": "node --check api/project-x-sync.js && node --check lib/project-x-sync.js && node --check api/ingest.js && node --check api/ingest-batch.js && node --check lib/ingestion.js && node --check lib/adapters.js"
   },
   "dependencies": {
     "pg": "^8.13.1"
