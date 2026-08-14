@@ -3,7 +3,8 @@ import {
   authenticateMcpRequest,
   oauthEnabled,
   requireScope,
-  setOAuthChallenge
+  setOAuthChallenge,
+  tunnelUnauthenticatedEnabled
 } from '../lib/mcp-auth.js';
 import {
   MCP_LATEST_PROTOCOL_VERSION,
@@ -62,7 +63,7 @@ export default async function handler(req, res) {
       protocolVersion: MCP_LATEST_PROTOCOL_VERSION,
       oauth: oauthEnabled(),
       legacyBearer: Boolean(process.env.ATLAS_MCP_SECRET),
-      tunnelUnauthenticated: process.env.ATLAS_MCP_ALLOW_UNAUTHENTICATED === 'true',
+      tunnelUnauthenticated: tunnelUnauthenticatedEnabled(),
       remoteReadOnly: remoteReadOnlyEnabled(),
       exposedToolCount: exposedToolDefinitions().length
     });
