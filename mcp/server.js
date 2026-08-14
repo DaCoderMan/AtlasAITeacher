@@ -12,6 +12,8 @@ import {
   closeAtlasStorePool
 } from '../lib/atlas-store.js';
 import { ingestEvent } from '../lib/ingestion.js';
+import { enqueueSourceEvent, processQueuedEvents, getAutomationStatus, closeAutoIngestPool } from '../lib/auto-ingest.js';
+import { reconcileAtlas, closeReconciliationPool } from '../lib/reconciliation.js';
 
 export const toolDefinitions = [
   {
@@ -46,7 +48,7 @@ export const toolDefinitions = [
   },
   {
     name: 'atlas_ingest',
-    description: 'Use this when new conversation, file, voice transcript, or external interaction should be evaluated by Atlas Universal Ingestion.',
+    description: 'Use this when new conversation, file, voice transcript, or external interaction should be evaluated immediately by Atlas Universal Ingestion.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -56,6 +58,38 @@ export const toolDefinitions = [
       },
       required: ['source', 'text'], additionalProperties: false
     },
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false }
+  },
+  {
+    name: 'atlas_enqueue',
+    description: 'Use this to put a source event into Atlas automatic ingestion. Prefer this for connector and background ingestion so retries and source health are tracked.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        source: { type: 'string' }, source_event_id: { type: 'string' }, thread_id: { type: 'string' }, session_id: { type: 'string' },
+        actor: { type: 'string' }, occurred_at: { type: 'string' }, content_type: { type: 'string' }, text: { type: 'string' },
+        content_text: { type: 'string' }, project_hint: { type: 'string' }, sensitivity: { type: 'string' }, language: { type: 'string' }, provenance: { type: 'object' }
+      },
+      required: ['source'], additionalProperties: false
+    },
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false }
+  },
+  {
+    name: 'atlas_automation_status',
+    description: 'Use this to inspect Atlas automatic ingestion queue counts and source health.',
+    inputSchema: { type: 'object', properties: {}, additionalProperties: false },
+    annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false }
+  },
+  {
+    name: 'atlas_run_worker',
+    description: 'Use this to process queued Atlas ingestion events now. Normal deployments should also run the daemon or scheduled worker automatically.',
+    inputSchema: { type: 'object', properties: { limit: { type: 'integer', minimum: 1, maximum: 100 } }, additionalProperties: false },
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false }
+  },
+  {
+    name: 'atlas_reconcile',
+    description: 'Use this to check Atlas automation consistency, dead letters, failed routes, degraded sources, and stale source feeds.',
+    inputSchema: { type: 'object', properties: { staleSourceMinutes: { type: 'integer', minimum: 5, maximum: 10080 } }, additionalProperties: false },
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false }
   },
   {
@@ -99,6 +133,10 @@ export async function dispatchTool(name, args = {}) {
       language: args.language,
       provenance: args.provenance || {}
     });
+    case 'atlas_enqueue': return enqueueSourceEvent({ ...args, content_text: args.content_text || args.text, actor: args.actor || 'codex' });
+    case 'atlas_automation_status': return getAutomationStatus();
+    case 'atlas_run_worker': return processQueuedEvents({ limit: args.limit || 25 });
+    case 'atlas_reconcile': return reconcileAtlas({ staleSourceMinutes: args.staleSourceMinutes || 180 });
     case 'atlas_remember': return atlasRemember(args);
     case 'atlas_create_task': return atlasCreateTask(args);
     case 'atlas_update_project': return atlasUpdateProject(args);
@@ -124,8 +162,8 @@ async function handle(message) {
       result: {
         protocolVersion: message.params?.protocolVersion || '2025-06-18',
         capabilities: { tools: { listChanged: false } },
-        serverInfo: { name: 'atlas', version: '1.0.0' },
-        instructions: 'Atlas is the canonical context and persistence gateway. Read context before significant work and write meaningful outcomes back through Atlas tools.'
+        serverInfo: { name: 'atlas', version: '1.1.0' },
+        instructions: 'Atlas is the canonical context, persistence, and automatic-ingestion gateway. Read context before significant work; send meaningful outcomes through Atlas; check automation status when source ingestion matters.'
       }
     });
     return;
@@ -159,7 +197,7 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     catch (error) { send({ jsonrpc: '2.0', id: null, error: { code: -32700, message: error?.message || 'Parse error' } }); }
   });
   const shutdown = async () => {
-    await closeAtlasStorePool().catch(() => {});
+    await Promise.allSettled([closeAtlasStorePool(), closeAutoIngestPool(), closeReconciliationPool()]);
     process.exit(0);
   };
   process.on('SIGINT', shutdown);
