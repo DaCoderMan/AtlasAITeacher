@@ -30,14 +30,16 @@ The server communicates over MCP stdio. Do not print application logs to stdout 
 
 ## Register in Codex
 
-Codex reads MCP server definitions from its MCP configuration. A local stdio configuration is:
+Codex reads MCP server definitions from its MCP configuration. The safest local stdio configuration is to keep the real Neon secret outside the repo and register the launcher script:
 
 ```toml
 [mcp_servers.atlas]
-command = "node"
-args = ["/ABSOLUTE/PATH/TO/AtlasAITeacher/mcp/server.js"]
-env = { DATABASE_URL = "postgresql://...", ATLAS_USER_ID = "default" }
+command = "bash"
+args = ["/ABSOLUTE/PATH/TO/AtlasAITeacher/scripts/run-atlas-mcp.sh"]
+env = { ATLAS_ENV_FILE = "/ABSOLUTE/PATH/TO/YOUR/REAL/atlas.env" }
 ```
+
+`scripts/run-atlas-mcp.sh` also honors a real `DATABASE_URL` already present in the shell and falls back to a few common local Atlas env file locations. It rejects placeholder values such as `[SENSITIVE]` so Codex fails fast instead of silently pointing at a broken database target.
 
 Keep secrets out of Git. Prefer environment/secret management on the machine running Codex instead of committing credentials into repository files.
 

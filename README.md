@@ -1,5 +1,15 @@
 # Atlas AI Teacher
 
+## Codex MCP
+
+Atlas MCP v1 lives in [`mcp/server.js`](./mcp/server.js). For Codex, prefer the local launcher:
+
+```bash
+scripts/run-atlas-mcp.sh
+```
+
+That launcher keeps secrets out of git-backed Codex config, defaults `ATLAS_USER_ID` to `default`, and refuses to start if `DATABASE_URL` is only a placeholder. See [`docs/CODEX_MCP.md`](./docs/CODEX_MCP.md) for the Codex registration example.
+
 ## Project X automatic Neon → Notion sync
 
 Neon `workitu-db / neondb` is the canonical structured project store. The endpoint `GET|POST /api/project-x-sync` reads non-deleted projects in `active`, `waiting`, or `later` state, normalizes duplicate names, orders them by priority, and replaces the contents of a dedicated Notion mirror page.
