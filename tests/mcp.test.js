@@ -5,15 +5,16 @@ import { toolDefinitions } from '../mcp/server.js';
 
 const EXPECTED = [
   'atlas_search', 'atlas_context', 'atlas_status', 'atlas_projects', 'atlas_tasks',
-  'atlas_ingest', 'atlas_remember', 'atlas_create_task', 'atlas_update_project'
+  'atlas_ingest', 'atlas_enqueue', 'atlas_automation_status', 'atlas_run_worker',
+  'atlas_reconcile', 'atlas_remember', 'atlas_create_task', 'atlas_update_project'
 ];
 
-test('Atlas MCP v1 exposes the expected nine tools', () => {
+test('Atlas MCP exposes the expected controlled tool surface', () => {
   assert.deepEqual(toolDefinitions.map(t => t.name), EXPECTED);
 });
 
-test('read tools are annotated read-only and write tools are not', () => {
-  const read = new Set(['atlas_search', 'atlas_context', 'atlas_status', 'atlas_projects', 'atlas_tasks']);
+test('read tools are annotated read-only and write/automation tools are not', () => {
+  const read = new Set(['atlas_search', 'atlas_context', 'atlas_status', 'atlas_projects', 'atlas_tasks', 'atlas_automation_status']);
   for (const tool of toolDefinitions) {
     assert.equal(tool.annotations.readOnlyHint, read.has(tool.name), tool.name);
     assert.equal(tool.annotations.destructiveHint, false, tool.name);
