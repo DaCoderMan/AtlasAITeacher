@@ -14,6 +14,13 @@ test('nine initial Atlas project manifests load and Atlas is improving', () => {
   assert.equal(getProjectManifest('magic-hebrew').active_agent, 'Magic Hebrew');
 });
 
+test('canonical Neon project names resolve to manifests', () => {
+  assert.equal(getProjectManifest('Atlas — Life OS & AI Teacher').id, 'atlas');
+  assert.equal(getProjectManifest('Magic Cloud Storage Solution / Agent Memory Infrastructure').id, 'magic-cloud-storage');
+  assert.equal(getProjectManifest('Magic Hebrew Learning System').id, 'magic-hebrew');
+  assert.equal(getProjectManifest({ manifest_id: 'workitu-growth', name: 'ignored' }).id, 'workitu-growth');
+});
+
 test('manifest validation rejects unknown lifecycle and duplicate ids', () => {
   const base = getProjectManifest('atlas');
   assert.throws(() => validateManifest({ ...base, lifecycle: 'Imaginary' }), /invalid lifecycle/);
@@ -28,6 +35,12 @@ test('voice modality does not change Magic Hebrew project scope', () => {
   assert.equal(voice.scope_invariant, true);
 });
 
+test('canonical Neon name resolves through context resolver', () => {
+  const context = resolveContext({ canonical_project: 'Remote Tech Job Search', last_verified_at: '2026-08-14T00:00:00Z' });
+  assert.equal(context.project.id, 'career');
+  assert.equal(context.source, 'canonical_state');
+});
+
 test('explicit project overrides active and conversation project', () => {
   const context = resolveContext({ explicit_project: 'Atlas', active_project: 'Magic Hebrew', conversation_project: 'Career' });
   assert.equal(context.project.id, 'atlas');
@@ -39,11 +52,20 @@ test('agent registry contains distinct Builder and Critic QA contracts', () => {
   assert.notEqual(getAgent('Builder').id, getAgent('Critic/QA').id);
 });
 
-test('router honors project allowed-agent restrictions', () => {
+test('cross-project specialist request escalates to Atlas rather than hijacking project specialist', () => {
   const context = resolveContext({ active_project: 'Magic Hebrew' });
   const routed = routeAgent({ resolved_context: context, intent: 'refactor the Atlas OAuth infrastructure', risk: 'low' });
-  assert.equal(routed.selected_agents[0], 'Magic Hebrew');
+  assert.equal(routed.selected_agents[0], 'Atlas');
+  assert.equal(routed.workflow_type, 'scope_escalation');
+  assert.ok(routed.warnings.some(item => item.type === 'cross_project_specialist_request'));
   assert.equal(routed.rationale.project_scope_applied, true);
+});
+
+test('in-scope Magic Hebrew learning request stays with Magic Hebrew', () => {
+  const context = resolveContext({ active_project: 'Magic Hebrew' });
+  const routed = routeAgent({ resolved_context: context, intent: 'practice Hebrew listening with me', risk: 'low' });
+  assert.equal(routed.selected_agents[0], 'Magic Hebrew');
+  assert.equal(routed.workflow_type, 'learn');
 });
 
 test('router surfaces degraded required dependency', () => {
@@ -60,24 +82,32 @@ test('router surfaces degraded required dependency', () => {
 test('Today engine recommends an urgent unblocked task and carries evidence', () => {
   const now = '2026-08-14T09:00:00Z';
   const projects = [
-    { id: 'p1', status: 'Building', priority: 5 },
-    { id: 'p2', status: 'Operational', priority: 3 }
+    { id: 'p1', status: 'active', lifecycle: 'Building', priority: 5 },
+    { id: 'p2', status: 'active', lifecycle: 'Operational', priority: 3 }
   ];
   const tasks = [
-    { id: 't1', project_id: 'p1', title: 'Ship Atlas', status: 'todo', priority: 5, due_at: '2026-08-14T12:00:00Z', strategic_impact: 90 },
+    { id: 't1', project_id: 'p1', title: 'Ship Atlas', status: 'pending', priority: 5, due_at: '2026-08-14T12:00:00Z', strategic_impact: 90 },
     { id: 't2', project_id: 'p2', title: 'Blocked item', status: 'waiting', priority: 5, due_at: '2026-08-14T10:00:00Z', waiting_on: 'external reply' }
   ];
   const plan = buildTodayPlan({ tasks, projects, now });
   assert.equal(plan.recommended_next_action.task_id, 't1');
   assert.ok(plan.recommended_next_action.evidence.some(item => item.type === 'task'));
+  assert.ok(plan.recommended_next_action.evidence.some(item => item.type === 'project' && item.field === 'lifecycle'));
   assert.ok(plan.blockers.some(item => item.task_id === 't2'));
 });
 
-test('Today engine warns at WIP limit', () => {
-  const projects = ['p1','p2','p3'].map(id => ({ id, status: 'Building', priority: 3 }));
-  const tasks = [{ id: 't1', project_id: 'p1', title: 'Work', status: 'todo', priority: 3 }];
+test('Today engine uses lifecycle not operational status for WIP', () => {
+  const projects = ['p1','p2','p3'].map(id => ({ id, status: 'active', lifecycle: 'Building', priority: 3 }));
+  const tasks = [{ id: 't1', project_id: 'p1', title: 'Work', status: 'pending', priority: 3 }];
   const plan = buildTodayPlan({ tasks, projects, now: '2026-08-14T09:00:00Z' });
+  assert.equal(plan.wip.major_building_or_testing, 3);
   assert.ok(plan.warnings.some(item => item.type === 'wip_limit_reached'));
+});
+
+test('operationally active project without Building lifecycle does not consume WIP slot', () => {
+  const projects = [{ id: 'p1', status: 'active', lifecycle: 'Operational', priority: 3 }];
+  const plan = buildTodayPlan({ tasks: [], projects, now: '2026-08-14T09:00:00Z' });
+  assert.equal(plan.wip.major_building_or_testing, 0);
 });
 
 test('Critic QA fails uncovered requirements and failed tests', () => {
@@ -89,6 +119,17 @@ test('Critic QA fails uncovered requirements and failed tests', () => {
   assert.equal(qa.status, 'fail');
   assert.ok(qa.findings.some(item => item.type === 'requirements_coverage' && item.criterion_id === 'r2'));
   assert.ok(qa.findings.some(item => item.type === 'test_result'));
+});
+
+test('Critic QA fails a cross-scope completion claim', () => {
+  const qa = runCriticQA({
+    requirements: [{ id: 'r1', text: 'complete scoped work' }],
+    evidence: [{ criterion_id: 'r1' }],
+    resolved_context: { project: { id: 'magic-hebrew' }, warnings: [] },
+    claimed_project_id: 'atlas'
+  });
+  assert.equal(qa.status, 'fail');
+  assert.ok(qa.findings.some(item => item.type === 'scope_adherence'));
 });
 
 test('Critic QA passes when criteria are covered and tests pass', () => {
