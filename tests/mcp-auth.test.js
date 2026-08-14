@@ -5,7 +5,8 @@ import {
   authenticateMcpRequest,
   protectedResourceMetadata,
   requireScope,
-  setOAuthChallenge
+  setOAuthChallenge,
+  tunnelUnauthenticatedEnabled
 } from '../lib/mcp-auth.js';
 
 const originalEnv = { ...process.env };
@@ -64,6 +65,30 @@ test('legacy Atlas secret remains valid', async () => {
   const auth = await authenticateMcpRequest(req('Bearer legacy-secret'));
   assert.equal(auth.ok, true);
   assert.equal(auth.mode, 'legacy-secret');
+});
+
+test('tunnel unauthenticated mode remains available outside public hosted runtimes', async () => {
+  process.env.ATLAS_MCP_ALLOW_UNAUTHENTICATED = 'true';
+  delete process.env.VERCEL;
+  delete process.env.VERCEL_ENV;
+  assert.equal(tunnelUnauthenticatedEnabled(), true);
+  const auth = await authenticateMcpRequest(req());
+  assert.equal(auth.ok, true);
+  assert.equal(auth.mode, 'tunnel');
+});
+
+test('Vercel deployment cannot enable public unauthenticated tunnel mode', async () => {
+  process.env.ATLAS_MCP_ALLOW_UNAUTHENTICATED = 'true';
+  process.env.VERCEL = '1';
+  delete process.env.ATLAS_MCP_SECRET;
+  delete process.env.ATLAS_MCP_OAUTH_ISSUER;
+  delete process.env.ATLAS_MCP_OAUTH_AUDIENCE;
+  delete process.env.ATLAS_MCP_OAUTH_JWKS_URL;
+  assert.equal(tunnelUnauthenticatedEnabled(), false);
+  const auth = await authenticateMcpRequest(req());
+  assert.equal(auth.ok, false);
+  assert.equal(auth.status, 503);
+  assert.equal(auth.reason, 'atlas_mcp_public_unauthenticated_forbidden');
 });
 
 test('OAuth JWT validates issuer, audience, signature, expiration and scopes', async () => {
