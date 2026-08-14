@@ -5,13 +5,18 @@ import {
   requireScope,
   setOAuthChallenge
 } from '../lib/mcp-auth.js';
+import {
+  MCP_LATEST_PROTOCOL_VERSION,
+  negotiateProtocolVersion,
+  validateProtocolHeader
+} from '../lib/mcp-protocol.js';
 
 function rpcResult(id, result) {
   return { jsonrpc: '2.0', id, result };
 }
 
-function rpcError(id, code, message) {
-  return { jsonrpc: '2.0', id: id ?? null, error: { code, message } };
+function rpcError(id, code, message, data = undefined) {
+  return { jsonrpc: '2.0', id: id ?? null, error: { code, message, ...(data === undefined ? {} : { data }) } };
 }
 
 function toolResult(value) {
@@ -31,16 +36,20 @@ function authFailure(req, res, auth) {
   return res.status(auth?.status || 401).json(rpcError(null, -32001, auth?.reason || 'unauthorized'));
 }
 
+function requestProtocol(req) {
+  return req.headers?.['mcp-protocol-version'] || null;
+}
+
 export default async function handler(req, res) {
   res.setHeader('Cache-Control', 'no-store');
-  res.setHeader('MCP-Protocol-Version', '2025-06-18');
 
   if (req.method === 'GET') {
     return res.status(200).json({
       ok: true,
       service: 'atlas-mcp',
       transport: 'streamable-http-json',
-      version: '1.3.0',
+      version: '2.0.0',
+      protocolVersion: MCP_LATEST_PROTOCOL_VERSION,
       oauth: oauthEnabled(),
       legacyBearer: Boolean(process.env.ATLAS_MCP_SECRET),
       tunnelUnauthenticated: process.env.ATLAS_MCP_ALLOW_UNAUTHENTICATED === 'true'
@@ -62,21 +71,30 @@ export default async function handler(req, res) {
     return res.status(400).json(rpcError(null, -32700, 'parse_error'));
   }
 
-  if (!message || message.jsonrpc !== '2.0') {
-    return res.status(400).json(rpcError(message?.id, -32600, 'invalid_request'));
+  if (!message || message.jsonrpc !== '2.0') return res.status(400).json(rpcError(message?.id, -32600, 'invalid_request'));
+
+  if (message.method === 'initialize') {
+    const negotiated = negotiateProtocolVersion(message.params?.protocolVersion);
+    res.setHeader('MCP-Protocol-Version', negotiated);
+    return res.status(200).json(rpcResult(message.id, {
+      protocolVersion: negotiated,
+      capabilities: { tools: { listChanged: false } },
+      serverInfo: { name: 'atlas', title: 'Atlas AI Operating System', version: '2.0.0' },
+      instructions: 'Atlas is the canonical project-aware orchestration, context, persistence, planning, QA and ingestion gateway. OAuth clients should request atlas.read; mutation tools additionally require atlas.write.'
+    }));
   }
+
+  const protocol = validateProtocolHeader(requestProtocol(req), { allowMissing: true });
+  if (!protocol.ok) {
+    return res.status(400).json(rpcError(message.id, -32602, 'Unsupported protocol version', {
+      requested: protocol.requested,
+      supported: protocol.supported
+    }));
+  }
+  res.setHeader('MCP-Protocol-Version', protocol.version || '2025-03-26');
 
   if (message.method === 'notifications/initialized') return res.status(204).end();
   if (message.method === 'ping') return res.status(200).json(rpcResult(message.id, {}));
-
-  if (message.method === 'initialize') {
-    return res.status(200).json(rpcResult(message.id, {
-      protocolVersion: message.params?.protocolVersion || '2025-06-18',
-      capabilities: { tools: { listChanged: false } },
-      serverInfo: { name: 'atlas', version: '1.3.0' },
-      instructions: 'Atlas is the canonical personal context and automatic-ingestion gateway. OAuth clients should request atlas.read; mutation tools additionally require atlas.write.'
-    }));
-  }
 
   if (message.method === 'tools/list') {
     if (!requireScope(auth, 'atlas.read') && auth.mode === 'oauth') {
@@ -88,6 +106,8 @@ export default async function handler(req, res) {
 
   if (message.method === 'tools/call') {
     const toolName = message.params?.name;
+    const definition = toolDefinitions.find(tool => tool.name === toolName);
+    if (!definition) return res.status(200).json(rpcError(message.id, -32602, `Unknown tool: ${toolName || ''}`));
     const requiredScope = isMutationTool(toolName) ? 'atlas.write' : 'atlas.read';
     if (auth.mode === 'oauth' && !requireScope(auth, requiredScope)) {
       setOAuthChallenge(req, res, { scope: requiredScope, error: 'insufficient_scope' });
