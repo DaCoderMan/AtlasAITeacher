@@ -1,6 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import handler from '../api/mcp.js';
+import protectedResourceHandler from '../api/oauth-protected-resource.js';
 import { toolDefinitions } from '../mcp/server.js';
 
 function mockResponse() {
@@ -55,4 +57,13 @@ test('remote MCP returns 401 when auth is configured but bearer is missing', asy
   delete process.env.ATLAS_MCP_SECRET;
   assert.equal(res.statusCode, 401);
   assert.equal(res.body.error.message, 'missing_bearer');
+});
+
+test('dedicated atlas-mcp deploy root points at the generated shared runtime', async () => {
+  const mcpSource = readFileSync(new URL('../apps/atlas-mcp/api/mcp.js', import.meta.url), 'utf8');
+  const resourceSource = readFileSync(new URL('../apps/atlas-mcp/api/oauth-protected-resource.js', import.meta.url), 'utf8');
+  assert.match(mcpSource, /runtime\/api\/mcp\.js/);
+  assert.match(resourceSource, /runtime\/api\/oauth-protected-resource\.js/);
+  assert.equal(typeof handler, 'function');
+  assert.equal(typeof protectedResourceHandler, 'function');
 });

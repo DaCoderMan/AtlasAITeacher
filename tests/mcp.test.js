@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
+import { readFileSync } from 'node:fs';
 import { toolDefinitions } from '../mcp/server.js';
 
 const EXPECTED = [
@@ -35,6 +36,17 @@ test('Atlas MCP does not expose raw SQL or shell tools', () => {
   for (const forbidden of ['atlas_sql', 'atlas_query', 'atlas_shell', 'atlas_exec']) {
     assert.equal(names.has(forbidden), false, forbidden);
   }
+});
+
+test('dedicated atlas-mcp deploy root keeps MCP rewrites without scheduler cron', () => {
+  const config = JSON.parse(readFileSync(new URL('../apps/atlas-mcp/vercel.json', import.meta.url), 'utf8'));
+  assert.deepEqual(config.rewrites, [
+    {
+      source: '/.well-known/oauth-protected-resource',
+      destination: '/api/oauth-protected-resource'
+    }
+  ]);
+  assert.equal('crons' in config, false);
 });
 
 test('stdio MCP handshake and tools/list work without database access', async () => {

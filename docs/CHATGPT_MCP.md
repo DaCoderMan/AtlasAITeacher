@@ -2,6 +2,15 @@
 
 Atlas supports local stdio MCP and remote HTTPS MCP over the same semantic tool surface.
 
+## Deployment boundary
+
+Atlas remote MCP is intended to deploy as a separate Vercel project rooted at `apps/atlas-mcp`.
+
+- The existing root deployment keeps the hourly `project-x-sync` cron in the repository root `vercel.json`.
+- The dedicated `atlas-mcp` deployment has its own `apps/atlas-mcp/vercel.json` with only MCP routing and no cron configuration.
+- Both deployments reuse the same shared Atlas libraries from this repository, so MCP business logic is not forked or duplicated.
+- During `atlas-mcp` builds, `apps/atlas-mcp/scripts/prepare-runtime.mjs` copies the MCP/API runtime files into an app-local `runtime/` directory so the deployed function stays self-contained while still sourcing logic from this repository.
+
 ## ChatGPT requirement
 
 ChatGPT cannot connect directly to the local stdio server. Atlas now supports a standards-based OAuth resource-server path for public `/api/mcp` deployments, while Secure MCP Tunnel remains suitable for private/local deployments.
@@ -126,6 +135,8 @@ Run:
 npm run ci
 ```
 
+For the dedicated MCP deployment, link or deploy from `apps/atlas-mcp`.
+
 Then verify:
 
 - `GET /.well-known/oauth-protected-resource`
@@ -136,3 +147,4 @@ Then verify:
 - valid `atlas.write` token can reach mutation dispatch
 - legacy `ATLAS_MCP_SECRET` still works
 - local `node mcp/server.js` behavior is unchanged
+- the dedicated `apps/atlas-mcp/vercel.json` has no `crons` entry
