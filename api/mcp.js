@@ -22,16 +22,8 @@ function toolResult(value) {
 }
 
 function isMutationTool(name) {
-  return new Set([
-    'atlas_remember',
-    'atlas_task_create',
-    'atlas_task_update',
-    'atlas_project_create',
-    'atlas_project_update',
-    'atlas_ingest',
-    'atlas_ingest_batch',
-    'atlas_reconcile'
-  ]).has(name);
+  const definition = toolDefinitions.find(tool => tool.name === name);
+  return Boolean(definition && definition.annotations?.readOnlyHint === false);
 }
 
 function authFailure(req, res, auth) {
