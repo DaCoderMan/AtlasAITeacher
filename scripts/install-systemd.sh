@@ -4,6 +4,8 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 ENV_FILE="${ATLAS_ENV_FILE:-$ROOT/.env}"
 UNIT_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user"
+ROOT_ESCAPED="$(printf '%q' "$ROOT")"
+ENV_ESCAPED="$(printf '%q' "$ENV_FILE")"
 mkdir -p "$UNIT_DIR"
 
 if [[ ! -f "$ENV_FILE" ]]; then
@@ -22,7 +24,7 @@ Wants=network-online.target
 Type=simple
 WorkingDirectory=$ROOT
 EnvironmentFile=$ENV_FILE
-ExecStart=/usr/bin/env node $ROOT/scripts/atlas-daemon.js
+ExecStart=/usr/bin/env bash -lc 'set -a; source $ENV_ESCAPED; set +a; cd $ROOT_ESCAPED && exec node scripts/atlas-daemon.js'
 Restart=always
 RestartSec=5
 
@@ -40,7 +42,7 @@ Wants=network-online.target
 Type=simple
 WorkingDirectory=$ROOT
 EnvironmentFile=$ENV_FILE
-ExecStart=/usr/bin/env node $ROOT/scripts/watch-dropbox.js
+ExecStart=/usr/bin/env bash -lc 'set -a; source $ENV_ESCAPED; set +a; cd $ROOT_ESCAPED && exec node scripts/watch-dropbox.js'
 Restart=always
 RestartSec=5
 

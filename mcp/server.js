@@ -1,5 +1,7 @@
 #!/usr/bin/env node
 import readline from 'node:readline';
+import { resolve } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import {
   atlasSearch,
   atlasContext,
@@ -152,6 +154,12 @@ function send(message) {
   process.stdout.write(`${JSON.stringify(message)}\n`);
 }
 
+function isDirectExecution() {
+  const entry = process.argv[1];
+  if (!entry) return false;
+  return import.meta.url === pathToFileURL(resolve(entry)).href;
+}
+
 async function handle(message) {
   if (!message || message.jsonrpc !== '2.0') return;
   if (message.method === 'notifications/initialized') return;
@@ -189,7 +197,7 @@ async function handle(message) {
   }
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (isDirectExecution()) {
   const rl = readline.createInterface({ input: process.stdin, crlfDelay: Infinity });
   rl.on('line', async line => {
     if (!line.trim()) return;
@@ -200,6 +208,7 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     await Promise.allSettled([closeAtlasStorePool(), closeAutoIngestPool(), closeReconciliationPool()]);
     process.exit(0);
   };
+  rl.on('close', shutdown);
   process.on('SIGINT', shutdown);
   process.on('SIGTERM', shutdown);
 }
