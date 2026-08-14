@@ -47,6 +47,7 @@ Required for OAuth mode:
 
 Optional:
 
+- `ATLAS_MCP_OAUTH_AUTHORIZATION_SERVER` — override the authorization-server identifier advertised in protected-resource metadata when it differs from the token issuer URL. For Auth0, this normally matches the issuer/custom-domain base URL.
 - `ATLAS_MCP_RESOURCE_URL` — override the canonical protected resource URL.
 - `ATLAS_MCP_RESOURCE_METADATA_URL` — override the RFC 9728 metadata URL.
 - `ATLAS_MCP_SECRET` — legacy bearer secret for compatible non-ChatGPT clients.
@@ -65,6 +66,48 @@ Do not commit secrets or raw access/refresh tokens.
 7. Enable/test mutation tools only when the ChatGPT plan/workspace and Atlas scopes permit them.
 
 Secure MCP Tunnel remains an alternative when Atlas runs locally or on a private network.
+
+## Auth0 setup
+
+Preferred path for Atlas remote MCP is Auth0 plus ChatGPT OAuth.
+
+Auth0 tenant/API configuration:
+
+1. Create or reuse an Auth0 API whose Identifier exactly matches the canonical Atlas MCP resource URL, for example `https://atlas.example.com/api/mcp`.
+2. Leave the API signing algorithm as `RS256`.
+3. Define API permissions `atlas.read` and `atlas.write`.
+4. Enable offline access for that API so `offline_access` can return refresh tokens.
+5. Use Auth0 OIDC discovery at `https://<tenant-or-custom-domain>/.well-known/openid-configuration`; Atlas should use the same base URL for `ATLAS_MCP_OAUTH_ISSUER`.
+6. Use the discovery document’s `jwks_uri` for `ATLAS_MCP_OAUTH_JWKS_URL`.
+
+Client-registration choices:
+
+1. `DCR` is the lowest-friction Auth0 path for ChatGPT because Auth0 supports open Dynamic Client Registration at `/oidc/register` when enabled, and ChatGPT supports DCR for MCP OAuth clients.
+2. `CIMD` is also supported by both ChatGPT and Auth0. Choose it when you want a stable externally hosted client identity instead of DCR-created `tpc_` clients.
+3. Pre-registering a static Auth0 application is only needed if you intentionally avoid DCR/CIMD. If you do that, use the exact redirect URI shown in the ChatGPT app-management page; do not guess it.
+
+ChatGPT callback / redirect URI:
+
+- Official OpenAI docs specify the production redirect format as `https://chatgpt.com/connector/oauth/{callback_id}`.
+- The exact callback URL is shown in the ChatGPT app-management page for the specific MCP app instance. Add that exact URL to Auth0 Allowed Callback URLs.
+
+Recommended Auth0 settings for ChatGPT MCP:
+
+- Authorization Code flow enabled
+- PKCE with `S256`
+- refresh tokens enabled
+- `offline_access` allowed
+- OIDC discovery enabled
+- JWTs signed with `RS256`
+- If using DCR, enable Dynamic Client Registration in the tenant and configure default permissions/client grants so DCR-created third-party clients can request `atlas.read` and `atlas.write`
+
+Atlas environment mapping:
+
+- `ATLAS_MCP_OAUTH_ISSUER=https://<tenant-or-custom-domain>/`
+- `ATLAS_MCP_OAUTH_AUTHORIZATION_SERVER=https://<tenant-or-custom-domain>/` (optional if same as issuer)
+- `ATLAS_MCP_OAUTH_AUDIENCE=https://<public-atlas-host>/api/mcp`
+- `ATLAS_MCP_OAUTH_JWKS_URL=https://<tenant-or-custom-domain>/.well-known/jwks.json`
+- `ATLAS_MCP_RESOURCE_URL=https://<public-atlas-host>/api/mcp`
 
 ## Security
 

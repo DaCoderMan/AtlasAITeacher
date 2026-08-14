@@ -43,6 +43,13 @@ test('protected resource metadata advertises Atlas resource and issuer', () => {
   assert.deepEqual(metadata.scopes_supported, ['atlas.read', 'atlas.write']);
 });
 
+test('protected resource metadata can advertise an explicit authorization server identifier', () => {
+  process.env.ATLAS_MCP_OAUTH_ISSUER = 'https://tenant.example.us.auth0.com/';
+  process.env.ATLAS_MCP_OAUTH_AUTHORIZATION_SERVER = 'https://login.example.com/';
+  const metadata = protectedResourceMetadata(req());
+  assert.deepEqual(metadata.authorization_servers, ['https://login.example.com/']);
+});
+
 test('OAuth challenge points clients to protected-resource metadata', () => {
   const response = res();
   setOAuthChallenge(req(), response, { scope: 'atlas.read' });
