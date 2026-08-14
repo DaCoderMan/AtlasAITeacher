@@ -43,4 +43,16 @@ test('remote MCP fails closed when no authentication mode is configured', async 
   const res = mockResponse();
   await handler(req, res);
   assert.equal(res.statusCode, 503);
+  assert.equal(res.body.error.message, 'atlas_mcp_auth_not_configured');
+});
+
+test('remote MCP returns 401 when auth is configured but bearer is missing', async () => {
+  process.env.ATLAS_MCP_SECRET = 'test-secret';
+  delete process.env.ATLAS_MCP_ALLOW_UNAUTHENTICATED;
+  const req = { method: 'POST', headers: {}, body: { jsonrpc: '2.0', id: 4, method: 'tools/list', params: {} } };
+  const res = mockResponse();
+  await handler(req, res);
+  delete process.env.ATLAS_MCP_SECRET;
+  assert.equal(res.statusCode, 401);
+  assert.equal(res.body.error.message, 'missing_bearer');
 });

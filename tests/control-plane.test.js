@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { buildManifestRegistry, getProjectManifest, listProjectManifests, validateManifest } from '../lib/manifests.js';
 import { resolveContext } from '../lib/context-resolver.js';
 import { getAgent, listAgents } from '../lib/agent-registry.js';
@@ -142,4 +143,11 @@ test('Critic QA passes when criteria are covered and tests pass', () => {
     dependencies: [{ service_id: 'neon', required: true, health: 'healthy' }]
   });
   assert.equal(qa.status, 'pass');
+});
+
+test('reconciliation qualifies joined routing status columns', () => {
+  const source = readFileSync(new URL('../lib/reconciliation.js', import.meta.url), 'utf8');
+  assert.match(source, /SELECT r\.destination, r\.status, count\(\*\)::int AS count/);
+  assert.match(source, /GROUP BY r\.destination, r\.status/);
+  assert.match(source, /ORDER BY r\.destination, r\.status/);
 });

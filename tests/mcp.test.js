@@ -5,8 +5,12 @@ import { toolDefinitions } from '../mcp/server.js';
 
 const EXPECTED = [
   'atlas_search', 'atlas_context', 'atlas_status', 'atlas_projects', 'atlas_tasks',
+  'atlas_manifests', 'atlas_resolve_context', 'atlas_agents', 'atlas_route',
+  'atlas_route_record', 'atlas_system_health', 'atlas_system_health_record',
+  'atlas_today', 'atlas_today_record', 'atlas_dashboard', 'atlas_control_plane_activity',
+  'atlas_critic_qa', 'atlas_critic_qa_record',
   'atlas_ingest', 'atlas_enqueue', 'atlas_automation_status', 'atlas_run_worker',
-  'atlas_reconcile', 'atlas_remember', 'atlas_create_task', 'atlas_update_project'
+  'atlas_retry_routes', 'atlas_reconcile', 'atlas_remember', 'atlas_create_task', 'atlas_update_project'
 ];
 
 test('Atlas MCP exposes the expected controlled tool surface', () => {
@@ -14,10 +18,22 @@ test('Atlas MCP exposes the expected controlled tool surface', () => {
 });
 
 test('read tools are annotated read-only and write/automation tools are not', () => {
-  const read = new Set(['atlas_search', 'atlas_context', 'atlas_status', 'atlas_projects', 'atlas_tasks', 'atlas_automation_status']);
+  const read = new Set([
+    'atlas_search', 'atlas_context', 'atlas_status', 'atlas_projects', 'atlas_tasks',
+    'atlas_manifests', 'atlas_resolve_context', 'atlas_agents', 'atlas_route',
+    'atlas_system_health', 'atlas_today', 'atlas_dashboard', 'atlas_control_plane_activity',
+    'atlas_critic_qa', 'atlas_automation_status'
+  ]);
   for (const tool of toolDefinitions) {
     assert.equal(tool.annotations.readOnlyHint, read.has(tool.name), tool.name);
     assert.equal(tool.annotations.destructiveHint, false, tool.name);
+  }
+});
+
+test('Atlas MCP does not expose raw SQL or shell tools', () => {
+  const names = new Set(toolDefinitions.map(tool => tool.name));
+  for (const forbidden of ['atlas_sql', 'atlas_query', 'atlas_shell', 'atlas_exec']) {
+    assert.equal(names.has(forbidden), false, forbidden);
   }
 });
 

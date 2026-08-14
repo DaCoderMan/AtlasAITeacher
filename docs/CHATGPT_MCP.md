@@ -25,6 +25,7 @@ The public deployment exposes RFC 9728 Protected Resource Metadata at:
 `/.well-known/oauth-protected-resource`
 
 It advertises the MCP resource and `authorization_servers`. Unauthorized OAuth requests receive `401` with a `WWW-Authenticate: Bearer` challenge containing the `resource_metadata` URL.
+If OAuth is not configured yet, Atlas still serves the metadata document but `authorization_servers` remains empty until an external provider is wired in.
 
 The authorization server itself is external/provider-independent and must expose OAuth Authorization Server Metadata or compatible OIDC discovery. It must implement Authorization Code + PKCE for interactive ChatGPT authorization and support refresh tokens for durable access.
 
@@ -85,6 +86,7 @@ npm run ci
 Then verify:
 
 - `GET /.well-known/oauth-protected-resource`
+- unauthenticated `POST /api/mcp` returns `503` when no auth mode is configured at all
 - unauthenticated `POST /api/mcp` returns `401` plus `WWW-Authenticate`
 - valid `atlas.read` token can initialize/list/read
 - read-only token receives `403` for mutation tools
