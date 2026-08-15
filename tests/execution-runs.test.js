@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { buildExecutionProgress, normalizeExecutionRunbook } from '../lib/execution-runs.js';
+import { buildExecutionProgress, latestRunRevisions, normalizeExecutionRunbook } from '../lib/execution-runs.js';
 
 test('normalizeExecutionRunbook validates unique dependencies and preserves ordered steps', () => {
   const runbook = normalizeExecutionRunbook({
@@ -36,6 +36,15 @@ test('buildExecutionProgress renders task-aware and overall progress strings', (
   assert.equal(progress.current_step.step_key, 'b');
   assert.equal(progress.task_progress.canonical_task_key, 'CX-010');
   assert.match(progress.progress_message, /CX-010, step 2\/2; overall 1\/3 steps/);
+});
+
+test('latestRunRevisions keeps only the newest revision per run key', () => {
+  const latest = latestRunRevisions([
+    { id: 'old-active', run_key: 'codex-x-execution-order-v2', run_revision: 1, updated_at: '2026-08-15T07:57:16.149Z' },
+    { id: 'new-complete', run_key: 'codex-x-execution-order-v2', run_revision: 2, updated_at: '2026-08-15T10:19:15.496Z' },
+    { id: 'other-run', run_key: 'another-run', run_revision: 1, updated_at: '2026-08-15T10:00:00.000Z' }
+  ]);
+  assert.deepEqual(latest.map(run => run.id), ['new-complete', 'other-run']);
 });
 
 test('codex x runbook v2 is machine-readable, deduplicated, and ordered', () => {
