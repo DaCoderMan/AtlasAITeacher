@@ -81,6 +81,17 @@ The intended loop is:
 5. `atlas_complete_execution_step` or `atlas_block_execution_step`
 6. `atlas_report_execution_progress`
 
+For the first live production verification once an OAuth bearer is available:
+
+```bash
+ATLAS_MCP_BEARER='...' npm run smoke:execution-run
+```
+
+Optional:
+
+- `ATLAS_MCP_URL` to override the MCP endpoint
+- `ATLAS_RUNBOOK_PATH` to point at a different runbook JSON file
+
 ## Security boundary
 
 The MCP server intentionally does not expose arbitrary SQL, shell execution, raw credentials, or unrestricted connector calls. Codex operates through semantic Atlas actions, preserving Atlas policy, provenance, deduplication, and auditability.
