@@ -5,7 +5,7 @@ import { readFileSync } from 'node:fs';
 import { toolDefinitions } from '../mcp/server.js';
 
 const EXPECTED = [
-  'atlas_search', 'atlas_context', 'atlas_status', 'atlas_connectors', 'atlas_connector_test_matrix', 'atlas_projects', 'atlas_tasks',
+  'atlas_search', 'atlas_context', 'atlas_status', 'atlas_connectors', 'atlas_connector_test_matrix', 'atlas_session_bootstrap', 'atlas_projects', 'atlas_tasks',
   'atlas_manifests', 'atlas_resolve_context', 'atlas_agents', 'atlas_route',
   'atlas_route_record', 'atlas_system_health', 'atlas_system_health_record',
   'atlas_today', 'atlas_today_record', 'atlas_dashboard', 'atlas_control_plane_activity',
@@ -21,7 +21,7 @@ test('Atlas MCP exposes the expected controlled tool surface', () => {
 test('read tools are annotated read-only and write/automation tools are not', () => {
   const read = new Set([
     'atlas_search', 'atlas_context', 'atlas_status', 'atlas_projects', 'atlas_tasks',
-    'atlas_connectors', 'atlas_connector_test_matrix',
+    'atlas_connectors', 'atlas_connector_test_matrix', 'atlas_session_bootstrap',
     'atlas_manifests', 'atlas_resolve_context', 'atlas_agents', 'atlas_route',
     'atlas_system_health', 'atlas_today', 'atlas_dashboard', 'atlas_control_plane_activity',
     'atlas_critic_qa', 'atlas_automation_status'
@@ -72,6 +72,14 @@ test('connector test matrix tool is read-only and exposes no mutation inputs', (
   assert.equal(tool.annotations.readOnlyHint, true);
   assert.equal(tool.inputSchema.additionalProperties, false);
   assert.deepEqual(tool.inputSchema.properties, {});
+});
+
+test('session bootstrap tool is read-only and accepts scoped context inputs only', () => {
+  const tool = toolDefinitions.find(item => item.name === 'atlas_session_bootstrap');
+  assert.equal(tool.annotations.readOnlyHint, true);
+  assert.equal(tool.inputSchema.additionalProperties, false);
+  assert.equal(tool.inputSchema.properties.explicit_project.type, 'string');
+  assert.deepEqual(tool.inputSchema.properties.modality.enum, ['text', 'voice']);
 });
 
 test('Atlas MCP does not expose raw SQL or shell tools', () => {

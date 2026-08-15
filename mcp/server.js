@@ -29,6 +29,7 @@ import { getAtlasDashboard } from '../lib/dashboard.js';
 import { runCriticQA } from '../lib/critic.js';
 import { capabilitySnapshot } from '../lib/capability-lifecycle.js';
 import { listConnectorTestPlans } from '../lib/connector-tests.js';
+import { buildSessionContextEnvelope } from '../lib/session-bootstrap.js';
 import {
   routeAndRecord,
   criticAndRecord,
@@ -76,6 +77,7 @@ export const toolDefinitions = [
   { name: 'atlas_status', description: 'Get compact Atlas operational status: project/task counts, routing counts, and highest-priority open tasks.', inputSchema: { type: 'object', properties: {}, additionalProperties: false }, annotations: READ_ONLY },
   { name: 'atlas_connectors', description: 'List canonical connector installation records with auth state, scopes, capabilities, risk classes, health and remediation.', inputSchema: { type: 'object', properties: { include_unconfigured: { type: 'boolean' } }, additionalProperties: false }, annotations: READ_ONLY },
   { name: 'atlas_connector_test_matrix', description: 'List canonical safe connector verification plans including harmless read probes, optional reversible write probes and cleanup verification requirements.', inputSchema: { type: 'object', properties: {}, additionalProperties: false }, annotations: READ_ONLY },
+  { name: 'atlas_session_bootstrap', description: 'Return a versioned SessionContextEnvelope resolving project scope, goals, memory summary, capability snapshot, approval policy and freshness warnings.', inputSchema: { type: 'object', properties: { explicit_project: { type: 'string' }, active_project: { type: 'string' }, conversation_project: { type: 'string' }, canonical_project: { type: 'string' }, global_project: { type: 'string' }, modality: { type: 'string', enum: ['text', 'voice'] }, last_verified_at: { type: 'string' } }, additionalProperties: false }, annotations: READ_ONLY },
   { name: 'atlas_projects', description: 'List canonical Atlas projects, optionally filtered by status.', inputSchema: { type: 'object', properties: { status: { type: 'string' }, limit: { type: 'integer', minimum: 1, maximum: 100 } }, additionalProperties: false }, annotations: READ_ONLY },
   { name: 'atlas_tasks', description: 'List canonical Atlas tasks, optionally filtered by status or project.', inputSchema: { type: 'object', properties: { status: { type: 'string' }, project_id: { type: 'string' }, limit: { type: 'integer', minimum: 1, maximum: 100 } }, additionalProperties: false }, annotations: READ_ONLY },
   { name: 'atlas_manifests', description: 'List Atlas Project Manifest v1 records or retrieve one by ID, slug, or name.', inputSchema: { type: 'object', properties: { project: { type: 'string' } }, additionalProperties: false }, annotations: READ_ONLY },
@@ -134,6 +136,14 @@ export async function dispatchTool(name, args = {}) {
     case 'atlas_status': return atlasStatus();
     case 'atlas_connectors': return atlasConnectors(args);
     case 'atlas_connector_test_matrix': return listConnectorTestPlans();
+    case 'atlas_session_bootstrap': {
+      const capability_snapshot = localCapabilitySnapshot();
+      const [context, dashboard] = await Promise.all([
+        atlasContext({ project: args.explicit_project || args.active_project || args.conversation_project || args.canonical_project || args.global_project, limit: 10 }),
+        getAtlasDashboard({})
+      ]);
+      return buildSessionContextEnvelope({ input: args, capability_snapshot, atlas_context: context, dashboard });
+    }
     case 'atlas_projects': return atlasProjects(args);
     case 'atlas_tasks': return atlasTasks(args);
     case 'atlas_manifests': return args.project ? getProjectManifest(args.project) : listProjectManifests();
