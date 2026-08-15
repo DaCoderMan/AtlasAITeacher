@@ -66,11 +66,14 @@ Keep secrets out of Git. Prefer environment/secret management on the machine run
 
 Execution runs provide a durable wrapper around multi-step Codex work. Start a run from a machine-readable runbook, claim one coherent step at a time, record evidence, complete or block the step, then report progress from canonical state.
 
-The repository includes a runbook example at:
+The repository includes runbook examples at:
 
 ```text
 runbooks/codex-x-execution-order.v1.json
+runbooks/codex-x-execution-order.v2.json
 ```
+
+`v1` preserves the original bundled 15-step rollout. `v2` is the current canonical default and expands the backlog into a deduplicated `CX-001..CX-031` execution order so progress denominators come from the full authoritative sequence.
 
 The intended loop is:
 

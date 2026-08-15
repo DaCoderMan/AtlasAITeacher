@@ -38,9 +38,15 @@ test('buildExecutionProgress renders task-aware and overall progress strings', (
   assert.match(progress.progress_message, /CX-010, step 2\/2; overall 1\/3 steps/);
 });
 
-test('codex x runbook file is machine-readable and ordered', () => {
-  const runbook = JSON.parse(readFileSync(new URL('../runbooks/codex-x-execution-order.v1.json', import.meta.url), 'utf8'));
+test('codex x runbook v2 is machine-readable, deduplicated, and ordered', () => {
+  const runbook = JSON.parse(readFileSync(new URL('../runbooks/codex-x-execution-order.v2.json', import.meta.url), 'utf8'));
   assert.equal(runbook.run_key, 'codex-x-execution-order-v2');
-  assert.ok(runbook.steps.length >= 10);
+  assert.equal(runbook.run_revision, 2);
+  assert.equal(runbook.steps.length, 31);
   assert.equal(runbook.steps[0].canonical_task_key, 'CX-001');
+  assert.equal(runbook.steps.at(-1).canonical_task_key, 'CX-031');
+  assert.deepEqual(
+    runbook.steps.map(step => step.canonical_task_key),
+    Array.from({ length: 31 }, (_, index) => `CX-${String(index + 1).padStart(3, '0')}`)
+  );
 });

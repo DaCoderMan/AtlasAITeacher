@@ -35,7 +35,7 @@ function loadRunbook(path) {
 async function main() {
   const baseUrl = process.env.ATLAS_MCP_URL || 'https://atlas-mcp-navy.vercel.app/api/mcp';
   const bearer = required('ATLAS_MCP_BEARER');
-  const runbookPath = process.env.ATLAS_RUNBOOK_PATH || 'runbooks/codex-x-execution-order.v1.json';
+  const runbookPath = process.env.ATLAS_RUNBOOK_PATH || 'runbooks/codex-x-execution-order.v2.json';
   const runbook = loadRunbook(runbookPath);
 
   const started = await mcpCall(baseUrl, bearer, 'atlas_start_execution_run', { runbook });
