@@ -8,6 +8,7 @@
     "test": "node --test tests/*.test.js",
     "ci": "npm run check && npm test",
     "mcp:atlas": "node mcp/server.js",
+    "smoke:session-resume": "node scripts/smoke-session-resume.mjs",
     "smoke:execution-run": "node scripts/smoke-execution-run.mjs",
     "daemon:atlas": "node scripts/atlas-daemon.js",
     "watch:atlas": "node scripts/watch-dropbox.js",
