@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mergeMutationProvenance, mutationSourceEventId, withMutationMetadata } from '../lib/mutation-metadata.js';
+import { mergeMutationProvenance, mutationAuditEnvelope, mutationSourceEventId, withMutationMetadata } from '../lib/mutation-metadata.js';
 
 test('mutationSourceEventId is deterministic for idempotent writes', () => {
   assert.equal(mutationSourceEventId('atlas_remember', 'abc123'), 'mutation:atlas_remember:abc123');
@@ -41,4 +41,17 @@ test('withMutationMetadata keeps explicit source_event_id for upstream replay co
   );
   assert.equal(enriched.source_event_id, 'gh-evt-1');
   assert.equal(enriched.provenance.idempotency_key, 'dup-key');
+});
+
+test('mutationAuditEnvelope captures before after changed fields and rollback guidance', () => {
+  const audit = mutationAuditEnvelope({
+    operation: 'atlas_update_task',
+    beforeState: { title: 'Old', status: 'pending', priority: 3 },
+    afterState: { title: 'New', status: 'in_progress', priority: 3 },
+    rollbackNote: 'Restore before_state on failure.'
+  });
+  assert.equal(audit.mutation_operation, 'atlas_update_task');
+  assert.equal(audit.verification_status, 'canonical_write_committed');
+  assert.deepEqual(audit.changed_fields, ['status', 'title']);
+  assert.equal(audit.rollback_note, 'Restore before_state on failure.');
 });
