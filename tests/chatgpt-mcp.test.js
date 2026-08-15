@@ -5,6 +5,12 @@ import handler, { structuredToolContent } from '../api/mcp.js';
 import protectedResourceHandler from '../api/oauth-protected-resource.js';
 import { toolDefinitions } from '../mcp/server.js';
 
+const originalEnv = { ...process.env };
+
+test.afterEach(() => {
+  process.env = { ...originalEnv };
+});
+
 function mockResponse() {
   return {
     statusCode: 200,
@@ -31,9 +37,8 @@ test('remote MCP wraps list tool structured content in objects for ChatGPT valid
 async function call(body) {
   const req = { method: 'POST', headers: {}, body };
   const res = mockResponse();
-  process.env.ATLAS_MCP_ALLOW_UNAUTHENTICATED = 'true';
+  process.env = { ...process.env, ATLAS_MCP_ALLOW_UNAUTHENTICATED: 'true' };
   await handler(req, res);
-  delete process.env.ATLAS_MCP_ALLOW_UNAUTHENTICATED;
   return res;
 }
 
@@ -92,6 +97,42 @@ test('remote MCP returns 401 when auth is configured but bearer is missing', asy
   delete process.env.ATLAS_MCP_SECRET;
   assert.equal(res.statusCode, 401);
   assert.equal(res.body.error.message, 'missing_bearer');
+});
+
+test('remote MCP health does not advertise legacy bearer on public OAuth deployments', async () => {
+  process.env.ATLAS_MCP_SECRET = 'legacy-secret';
+  process.env.ATLAS_MCP_OAUTH_ISSUER = 'https://auth.example.com';
+  process.env.ATLAS_MCP_OAUTH_AUDIENCE = 'https://atlas.example.com/api/mcp';
+  process.env.ATLAS_MCP_OAUTH_JWKS_URL = 'https://auth.example.com/jwks';
+  process.env.VERCEL = '1';
+  const req = { method: 'GET', headers: { host: 'atlas.example.com', 'x-forwarded-proto': 'https' }, body: undefined };
+  const res = mockResponse();
+  await handler(req, res);
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.body.oauth, true);
+  assert.equal(res.body.legacyBearer, false);
+});
+
+test('remote MCP rejects secret-class durable memory writes before dispatch', async () => {
+  const req = {
+    method: 'POST',
+    headers: {},
+    body: {
+      jsonrpc: '2.0',
+      id: 30,
+      method: 'tools/call',
+      params: {
+        name: 'atlas_remember',
+        arguments: { text: 'api key sk-live-...', sensitivity: 'secret' }
+      }
+    }
+  };
+  const res = mockResponse();
+  process.env = { ...process.env, ATLAS_MCP_ALLOW_UNAUTHENTICATED: 'true' };
+  await handler(req, res);
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.body.result.isError, true);
+  assert.match(res.body.result.content[0].text, /secret_sensitivity_requires_vault/);
 });
 
 test('dedicated atlas-mcp deploy root points at the generated shared runtime', async () => {

@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
 import {
   authenticateMcpRequest,
+  legacyBearerEnabled,
   protectedResourceMetadata,
   requireScope,
   setOAuthChallenge,
@@ -62,9 +63,23 @@ test('legacy Atlas secret remains valid', async () => {
   process.env.ATLAS_MCP_SECRET = 'legacy-secret';
   delete process.env.ATLAS_MCP_ALLOW_UNAUTHENTICATED;
   delete process.env.ATLAS_MCP_OAUTH_ISSUER;
+  delete process.env.VERCEL;
   const auth = await authenticateMcpRequest(req('Bearer legacy-secret'));
   assert.equal(auth.ok, true);
   assert.equal(auth.mode, 'legacy-secret');
+});
+
+test('public hosted runtime does not enable legacy bearer by default', async () => {
+  process.env.ATLAS_MCP_SECRET = 'legacy-secret';
+  process.env.VERCEL = '1';
+  process.env.ATLAS_MCP_OAUTH_ISSUER = 'https://auth.example.com';
+  process.env.ATLAS_MCP_OAUTH_AUDIENCE = 'https://atlas.example.com/api/mcp';
+  process.env.ATLAS_MCP_OAUTH_JWKS_URL = 'https://auth.example.com/jwks';
+  assert.equal(legacyBearerEnabled(), false);
+  const auth = await authenticateMcpRequest(req('Bearer legacy-secret'));
+  assert.equal(auth.ok, false);
+  assert.equal(auth.status, 401);
+  assert.equal(auth.reason, 'invalid_token_format');
 });
 
 test('tunnel unauthenticated mode remains available outside public hosted runtimes', async () => {
@@ -89,6 +104,18 @@ test('Vercel deployment cannot enable public unauthenticated tunnel mode', async
   assert.equal(auth.ok, false);
   assert.equal(auth.status, 503);
   assert.equal(auth.reason, 'atlas_mcp_public_unauthenticated_forbidden');
+});
+
+test('public hosted runtime with only legacy bearer is rejected as unsupported', async () => {
+  process.env.ATLAS_MCP_SECRET = 'legacy-secret';
+  process.env.VERCEL_ENV = 'production';
+  delete process.env.ATLAS_MCP_OAUTH_ISSUER;
+  delete process.env.ATLAS_MCP_OAUTH_AUDIENCE;
+  delete process.env.ATLAS_MCP_OAUTH_JWKS_URL;
+  const auth = await authenticateMcpRequest(req('Bearer legacy-secret'));
+  assert.equal(auth.ok, false);
+  assert.equal(auth.status, 503);
+  assert.equal(auth.reason, 'atlas_mcp_public_legacy_bearer_forbidden');
 });
 
 test('OAuth JWT validates issuer, audience, signature, expiration and scopes', async () => {

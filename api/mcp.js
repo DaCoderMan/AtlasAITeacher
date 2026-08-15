@@ -1,11 +1,13 @@
 import { toolDefinitions, dispatchTool } from '../mcp/server.js';
 import {
   authenticateMcpRequest,
+  legacyBearerEnabled,
   oauthEnabled,
   requireScope,
   setOAuthChallenge,
   tunnelUnauthenticatedEnabled
 } from '../lib/mcp-auth.js';
+import { assertAllowedMcpMutation } from '../lib/mcp-write-policy.js';
 import {
   MCP_LATEST_PROTOCOL_VERSION,
   negotiateProtocolVersion,
@@ -69,7 +71,7 @@ export default async function handler(req, res) {
       version: '2.0.0',
       protocolVersion: MCP_LATEST_PROTOCOL_VERSION,
       oauth: oauthEnabled(),
-      legacyBearer: Boolean(process.env.ATLAS_MCP_SECRET),
+      legacyBearer: legacyBearerEnabled(),
       tunnelUnauthenticated: tunnelUnauthenticatedEnabled(),
       remoteReadOnly: remoteReadOnlyEnabled(),
       exposedToolCount: exposedToolDefinitions().length
@@ -139,6 +141,7 @@ export default async function handler(req, res) {
       return res.status(403).json(rpcError(message.id, -32003, 'insufficient_scope'));
     }
     try {
+      assertAllowedMcpMutation(toolName, message.params?.arguments || {});
       const value = await dispatchTool(toolName, message.params?.arguments || {});
       return res.status(200).json(rpcResult(message.id, toolResult(toolName, value)));
     } catch (error) {
