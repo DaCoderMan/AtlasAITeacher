@@ -35,6 +35,8 @@ import {
   criticAndRecord,
   healthAndRecord,
   todayAndRecord,
+  checkpointSession,
+  resumeSession,
   getControlPlaneActivity,
   closeControlPlanePool
 } from '../lib/control-plane-store.js';
@@ -89,6 +91,8 @@ export const toolDefinitions = [
   { name: 'atlas_system_health_record', description: 'Live-check Atlas dependencies and persist the health observations.', inputSchema: { type: 'object', properties: { timeout_ms: { type: 'integer', minimum: 250, maximum: 10000 } }, additionalProperties: false }, annotations: WRITE_SAFE },
   { name: 'atlas_today', description: 'Generate an explainable next-action plan from canonical projects/tasks and verified scheduled task commitments.', inputSchema: { type: 'object', properties: { now: { type: 'string' }, active_project_id: { type: 'string' } }, additionalProperties: false }, annotations: READ_ONLY },
   { name: 'atlas_today_record', description: 'Generate and persist today’s explainable Atlas plan.', inputSchema: { type: 'object', properties: { now: { type: 'string' }, active_project_id: { type: 'string' }, max_major_wip: { type: 'integer', minimum: 1, maximum: 10 } }, additionalProperties: false }, annotations: WRITE_SAFE },
+  { name: 'atlas_resume_session', description: 'Resume a versioned Atlas session by session ID or resume handle.', inputSchema: { type: 'object', properties: { session_id: { type: 'string' }, resume_handle: { type: 'string' } }, additionalProperties: false }, annotations: READ_ONLY },
+  { name: 'atlas_checkpoint_session', description: 'Persist a versioned session checkpoint with optimistic session-version checks, durable delta, expected canonical version, causal links and unfinished-work handle.', inputSchema: { type: 'object', properties: { session_id: { type: 'string' }, expected_session_version: { type: 'integer' }, expected_canonical_version: { type: 'integer' }, project_key: { type: 'string' }, context: { type: 'object' }, delta: { type: 'object' }, checkpoint_state: { type: 'object' }, conflict_state: { type: 'object' }, causal_links: { type: 'array', items: { type: 'object' } }, unfinished_handle: { type: 'string' } }, additionalProperties: false }, annotations: WRITE_SAFE },
   { name: 'atlas_dashboard', description: 'Return the Atlas dashboard backend model: Daily Brief, next action, WIP, blockers, calendar state, agents, QA, conflicts, health, automations and recent state.', inputSchema: { type: 'object', properties: { now: { type: 'string' }, active_project_id: { type: 'string' } }, additionalProperties: false }, annotations: READ_ONLY },
   { name: 'atlas_control_plane_activity', description: 'Inspect persisted agent routing, QA runs, health observations, daily plans and open conflicts.', inputSchema: { type: 'object', properties: { limit: { type: 'integer', minimum: 1, maximum: 100 } }, additionalProperties: false }, annotations: READ_ONLY },
   { name: 'atlas_critic_qa', description: 'Run the independent Atlas QA gate over requirements, evidence, tests, scope, dependencies and contradictions.', inputSchema: qaSchema, annotations: READ_ONLY },
@@ -155,6 +159,8 @@ export async function dispatchTool(name, args = {}) {
     case 'atlas_system_health_record': return healthAndRecord(args);
     case 'atlas_today': return (await getAtlasDashboard(args)).today;
     case 'atlas_today_record': return todayAndRecord(args);
+    case 'atlas_resume_session': return resumeSession(args);
+    case 'atlas_checkpoint_session': return checkpointSession(args);
     case 'atlas_dashboard': return getAtlasDashboard(args);
     case 'atlas_control_plane_activity': return getControlPlaneActivity(args);
     case 'atlas_critic_qa': return runCriticQA(args);

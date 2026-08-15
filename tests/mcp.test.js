@@ -8,7 +8,7 @@ const EXPECTED = [
   'atlas_search', 'atlas_context', 'atlas_status', 'atlas_connectors', 'atlas_connector_test_matrix', 'atlas_session_bootstrap', 'atlas_projects', 'atlas_tasks',
   'atlas_manifests', 'atlas_resolve_context', 'atlas_agents', 'atlas_route',
   'atlas_route_record', 'atlas_system_health', 'atlas_system_health_record',
-  'atlas_today', 'atlas_today_record', 'atlas_dashboard', 'atlas_control_plane_activity',
+  'atlas_today', 'atlas_today_record', 'atlas_resume_session', 'atlas_checkpoint_session', 'atlas_dashboard', 'atlas_control_plane_activity',
   'atlas_critic_qa', 'atlas_critic_qa_record',
   'atlas_ingest', 'atlas_enqueue', 'atlas_automation_status', 'atlas_run_worker',
   'atlas_retry_routes', 'atlas_reconcile', 'atlas_remember', 'atlas_create_task', 'atlas_update_task', 'atlas_update_project'
@@ -23,7 +23,7 @@ test('read tools are annotated read-only and write/automation tools are not', ()
     'atlas_search', 'atlas_context', 'atlas_status', 'atlas_projects', 'atlas_tasks',
     'atlas_connectors', 'atlas_connector_test_matrix', 'atlas_session_bootstrap',
     'atlas_manifests', 'atlas_resolve_context', 'atlas_agents', 'atlas_route',
-    'atlas_system_health', 'atlas_today', 'atlas_dashboard', 'atlas_control_plane_activity',
+    'atlas_system_health', 'atlas_today', 'atlas_resume_session', 'atlas_dashboard', 'atlas_control_plane_activity',
     'atlas_critic_qa', 'atlas_automation_status'
   ]);
   for (const tool of toolDefinitions) {
@@ -80,6 +80,18 @@ test('session bootstrap tool is read-only and accepts scoped context inputs only
   assert.equal(tool.inputSchema.additionalProperties, false);
   assert.equal(tool.inputSchema.properties.explicit_project.type, 'string');
   assert.deepEqual(tool.inputSchema.properties.modality.enum, ['text', 'voice']);
+});
+
+test('session checkpoint tools expose bounded checkpoint and resume fields', () => {
+  const resume = toolDefinitions.find(item => item.name === 'atlas_resume_session');
+  const checkpoint = toolDefinitions.find(item => item.name === 'atlas_checkpoint_session');
+  assert.equal(resume.annotations.readOnlyHint, true);
+  assert.equal(checkpoint.annotations.readOnlyHint, false);
+  assert.equal(resume.inputSchema.properties.session_id.type, 'string');
+  assert.equal(checkpoint.inputSchema.properties.expected_session_version.type, 'integer');
+  assert.equal(checkpoint.inputSchema.properties.expected_canonical_version.type, 'integer');
+  assert.equal(checkpoint.inputSchema.properties.delta.type, 'object');
+  assert.equal(checkpoint.inputSchema.properties.causal_links.type, 'array');
 });
 
 test('Atlas MCP does not expose raw SQL or shell tools', () => {
