@@ -27,6 +27,13 @@ test('session bootstrap envelope returns versioned context goals memory capabili
     },
     dashboard: {
       persisted_health: [{ service_id: 'github', health: 'degraded', failure_summary: 'rate limited' }],
+      system_health: {
+        planes: {
+          atlas_backend: { health: 'healthy', execution_plane: 'server' },
+          connector_runtime: { health: 'degraded', execution_plane: 'connector' },
+          host_surface: { health: 'unknown', execution_plane: 'host' }
+        }
+      },
       release_gate: { status: 'open', enforced: true },
       execution_runs: {
         active: [{ id: 'run-1', run_key: 'codex-job', progress: { progress_message: '1/3 steps' } }]
@@ -40,6 +47,7 @@ test('session bootstrap envelope returns versioned context goals memory capabili
   assert.equal(envelope.memory[0].kind, 'decision');
   assert.equal(envelope.capability_snapshot.capability_epoch, 'epoch-1');
   assert.equal(envelope.freshness.degraded_dependencies[0].service_id, 'github');
+  assert.equal(envelope.freshness.health_planes.host_surface.health, 'unknown');
   assert.equal(envelope.active_execution_run.id, 'run-1');
   assert.equal(envelope.release_gate.status, 'open');
 });
