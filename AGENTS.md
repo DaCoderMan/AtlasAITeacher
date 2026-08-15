@@ -10,6 +10,9 @@ Atlas is Yonatan's global AI command center and Life OS. It orchestrates project
 - Never let Atlas override a project's explicit instructions or scope unless Yonatan explicitly requests a cross-project/global action.
 
 ## Canonical architecture
+- Atlas Core is provider- and interface-independent. It must function without any ChatGPT plugin, MCP app, browser extension, or single connector.
+- Plugins, MCP servers, APIs, direct connectors, local services, and browser automation are optional adapters that expose capabilities to Atlas Core; none is the identity or canonical implementation of Atlas itself.
+- If one adapter is unavailable, Atlas should continue through any authorized equivalent capability while preserving validation, provenance, audit, idempotency, and safety rules.
 - Neon: canonical structured state for projects, tasks, goals, agent state, structured memory, learning state, opportunities, sync metadata.
 - Notion: human-readable dashboards, manuals, project summaries, and knowledge mirrors.
 - Google Drive: durable files, artifacts, documents, and backups.
@@ -18,11 +21,14 @@ Atlas is Yonatan's global AI command center and Life OS. It orchestrates project
 - Gmail: authoritative communications.
 
 ## Atlas MCP rule
+- MCP is a preferred interface when available, not a hard dependency.
 - When the Atlas MCP server is available, use it as the canonical interface to Atlas state instead of bypassing it with direct database writes.
-- Before significant project work, call `atlas_context` (or `atlas_search` when discovery is needed).
-- Use `atlas_projects`, `atlas_tasks`, and `atlas_status` for canonical reads.
-- Use `atlas_create_task` and `atlas_update_project` for controlled mutations.
-- After meaningful progress, decisions, commitments, or durable discoveries, send them through `atlas_ingest` or `atlas_remember` so Universal Ingestion can classify, deduplicate, route, and audit them.
+- Before significant project work, call `atlas_context` (or `atlas_search` when discovery is needed) when that capability is available.
+- Use `atlas_projects`, `atlas_tasks`, and `atlas_status` for canonical reads when exposed through the active interface.
+- Use `atlas_create_task` and `atlas_update_project` for controlled mutations when exposed through the active interface.
+- After meaningful progress, decisions, commitments, or durable discoveries, send them through `atlas_ingest` or `atlas_remember` when available so Universal Ingestion can classify, deduplicate, route, and audit them.
+- If Atlas MCP/plugin is unavailable or intentionally skipped, use authorized direct connectors/APIs to the canonical destination and preserve the same semantics and verification requirements.
+- Never claim an Atlas mutation, synchronization, ingestion, or memory write succeeded unless the authoritative destination confirms it.
 - Do not indiscriminately persist low-value transient chatter.
 
 ## Skills rule
