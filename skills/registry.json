@@ -1,0 +1,68 @@
+{
+  "schema_version": "1.0",
+  "routing_order": [
+    "resolve_project_scope",
+    "match_skill",
+    "verify_capabilities",
+    "apply_risk_gate",
+    "execute",
+    "validate",
+    "persist_and_audit"
+  ],
+  "skills": [
+    {
+      "id": "automation-manager",
+      "name": "Automation Manager",
+      "version": "1.0.0",
+      "path": "skills/automation-manager.md",
+      "risk_level": "variable",
+      "capabilities": ["scheduled_tasks", "condition_watches", "deduplication", "schedule_validation"],
+      "status": "active"
+    },
+    {
+      "id": "plugin-connector-orchestrator",
+      "name": "Plugin & Connector Orchestrator",
+      "version": "1.0.0",
+      "path": "skills/plugin-connector-orchestrator.md",
+      "risk_level": "variable",
+      "capabilities": ["tool_discovery", "connector_selection", "permission_check", "authoritative_source_routing"],
+      "status": "active"
+    },
+    {
+      "id": "atlas-operator",
+      "name": "Atlas Operator",
+      "version": "1.0.0",
+      "path": "skills/atlas-operator.md",
+      "risk_level": "variable",
+      "capabilities": ["project_context", "task_project_state", "specialist_routing", "persistence", "qa", "reconciliation"],
+      "status": "active"
+    },
+    {
+      "id": "cross-system-workflow-builder",
+      "name": "Cross-System Workflow Builder",
+      "version": "1.0.0",
+      "path": "skills/cross-system-workflow-builder.md",
+      "risk_level": "variable",
+      "capabilities": ["workflow_composition", "state_machine", "risk_gates", "idempotency", "retries", "provenance"],
+      "status": "active"
+    },
+    {
+      "id": "automation-qa-recovery",
+      "name": "Automation QA & Recovery",
+      "version": "1.0.0",
+      "path": "skills/automation-qa-recovery.md",
+      "risk_level": "medium",
+      "capabilities": ["diagnostics", "reconciliation", "safe_retry", "root_cause", "recovery_validation"],
+      "status": "active"
+    },
+    {
+      "id": "skill-registry-router",
+      "name": "Skill Registry & Router",
+      "version": "1.0.0",
+      "path": "skills/skill-registry-router.md",
+      "risk_level": "low",
+      "capabilities": ["skill_discovery", "routing", "composition", "capability_matching"],
+      "status": "active"
+    }
+  ]
+}
