@@ -120,6 +120,7 @@ test('remote MCP health does not advertise legacy bearer on public OAuth deploym
   assert.equal(res.body.scopeProfile, 'atlas.read atlas.write');
   assert.equal(res.body.releaseGate.status, 'disabled');
   assert.equal(res.body.qualityGate.controls.experimental_routing.enabled, false);
+  assert.equal(res.body.recovery.status, 'unverified');
 });
 
 test('remote MCP reports an open production release gate when evidence is present', async () => {
