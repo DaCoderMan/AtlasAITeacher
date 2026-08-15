@@ -18,6 +18,7 @@ import {
   compareCapabilitySnapshot,
   parseClientCapabilitySnapshot
 } from '../lib/capability-lifecycle.js';
+import { assertReleaseGateOpen, getReleaseGateStatus } from '../lib/release-gate.js';
 
 function rpcResult(id, result) {
   return { jsonrpc: '2.0', id, result };
@@ -105,13 +106,20 @@ export default async function handler(req, res) {
       exposedToolCount: exposedToolDefinitions().length,
       capabilityEpoch: snapshot.capability_epoch,
       toolSchemaHash: snapshot.tool_schema_hash,
-      scopeProfile: snapshot.scope_profile
+      scopeProfile: snapshot.scope_profile,
+      releaseGate: getReleaseGateStatus()
     });
   }
 
   if (req.method !== 'POST') {
     res.setHeader('Allow', 'GET, POST');
     return res.status(405).json(rpcError(null, -32600, 'method_not_allowed'));
+  }
+
+  try {
+    assertReleaseGateOpen();
+  } catch (error) {
+    return res.status(error?.status || 503).json(rpcError(null, -32012, error?.message || 'release_gate_blocked', error?.release_gate));
   }
 
   const auth = await authenticateMcpRequest(req);

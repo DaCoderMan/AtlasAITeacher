@@ -118,6 +118,40 @@ test('remote MCP health does not advertise legacy bearer on public OAuth deploym
   assert.equal(typeof res.body.capabilityEpoch, 'string');
   assert.equal(typeof res.body.toolSchemaHash, 'string');
   assert.equal(res.body.scopeProfile, 'atlas.read atlas.write');
+  assert.equal(res.body.releaseGate.status, 'disabled');
+});
+
+test('remote MCP reports an open production release gate when evidence is present', async () => {
+  process.env.ATLAS_MCP_SECRET = 'legacy-secret';
+  process.env.ATLAS_RELEASE_GATE_MODE = 'enforce';
+  process.env.ATLAS_RELEASE_GATE_TESTS = 'npm run check && node --test tests/chatgpt-mcp.test.js';
+  process.env.ATLAS_RELEASE_GATE_TESTED_AT = '2026-08-15T12:00:00Z';
+  process.env.VERCEL_ENV = 'production';
+  process.env.VERCEL_GIT_COMMIT_SHA = 'abc123';
+  process.env.VERCEL_DEPLOYMENT_ID = 'dpl_test123';
+  const req = { method: 'GET', headers: {}, body: undefined };
+  const res = mockResponse();
+  await handler(req, res);
+  assert.equal(res.statusCode, 200);
+  assert.equal(res.body.releaseGate.status, 'open');
+  assert.equal(res.body.releaseGate.enforced, true);
+  assert.equal(res.body.releaseGate.evidence.commit, 'abc123');
+  assert.equal(res.body.releaseGate.evidence.deployment, 'dpl_test123');
+});
+
+test('remote MCP blocks production POST traffic when enforced release evidence is missing', async () => {
+  process.env.ATLAS_RELEASE_GATE_MODE = 'enforce';
+  process.env.VERCEL_ENV = 'production';
+  process.env.VERCEL_GIT_COMMIT_SHA = 'abc123';
+  delete process.env.VERCEL_DEPLOYMENT_ID;
+  delete process.env.ATLAS_RELEASE_GATE_TESTS;
+  delete process.env.ATLAS_RELEASE_GATE_TESTED_AT;
+  const req = { method: 'POST', headers: {}, body: { jsonrpc: '2.0', id: 55, method: 'tools/list', params: {} } };
+  const res = mockResponse();
+  await handler(req, res);
+  assert.equal(res.statusCode, 503);
+  assert.equal(res.body.error.message, 'release_gate_blocked');
+  assert.deepEqual(res.body.error.data.missing_requirements, ['deployment', 'tests', 'tested_at']);
 });
 
 test('remote MCP rejects secret-class durable memory writes before dispatch', async () => {
