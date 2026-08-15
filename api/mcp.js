@@ -23,6 +23,7 @@ function rpcError(id, code, message, data = undefined) {
 }
 
 export function structuredToolContent(toolName, value) {
+  if (toolName === 'atlas_connectors' && Array.isArray(value)) return { connectors: value };
   if (toolName === 'atlas_projects' && Array.isArray(value)) return { projects: value };
   if (toolName === 'atlas_tasks' && Array.isArray(value)) return { tasks: value };
   if (toolName === 'atlas_manifests' && Array.isArray(value)) return { manifests: value };
