@@ -31,6 +31,19 @@ import { capabilitySnapshot } from '../lib/capability-lifecycle.js';
 import { listConnectorTestPlans } from '../lib/connector-tests.js';
 import { buildSessionContextEnvelope } from '../lib/session-bootstrap.js';
 import {
+  startExecutionRun,
+  getExecutionRun,
+  listExecutionRuns,
+  claimNextExecutionStep,
+  updateExecutionStep,
+  completeExecutionStep,
+  blockExecutionStep,
+  recordExecutionEvidence,
+  reportExecutionProgress,
+  resumeExecutionRun,
+  closeExecutionRunPool
+} from '../lib/execution-runs.js';
+import {
   routeAndRecord,
   criticAndRecord,
   healthAndRecord,
@@ -73,6 +86,19 @@ const qaSchema = {
   additionalProperties: false
 };
 
+const executionStepLocatorSchema = {
+  type: 'object',
+  properties: {
+    run_id: { type: 'string' },
+    run_key: { type: 'string' },
+    run_revision: { type: 'integer', minimum: 1 },
+    step_id: { type: 'string' },
+    step_key: { type: 'string' },
+    expected_run_version: { type: 'integer' }
+  },
+  additionalProperties: false
+};
+
 export const toolDefinitions = [
   { name: 'atlas_search', description: 'Search Atlas canonical projects, tasks, and extracted knowledge.', inputSchema: { type: 'object', properties: { query: { type: 'string' }, limit: { type: 'integer', minimum: 1, maximum: 100 } }, required: ['query'], additionalProperties: false }, annotations: READ_ONLY },
   { name: 'atlas_context', description: 'Load relevant canonical Atlas project context, tasks, recent extractions, and optional search results.', inputSchema: { type: 'object', properties: { project: { type: 'string' }, query: { type: 'string' }, limit: { type: 'integer', minimum: 1, maximum: 100 } }, additionalProperties: false }, annotations: READ_ONLY },
@@ -93,6 +119,16 @@ export const toolDefinitions = [
   { name: 'atlas_today_record', description: 'Generate and persist today’s explainable Atlas plan.', inputSchema: { type: 'object', properties: { now: { type: 'string' }, active_project_id: { type: 'string' }, max_major_wip: { type: 'integer', minimum: 1, maximum: 10 } }, additionalProperties: false }, annotations: WRITE_SAFE },
   { name: 'atlas_resume_session', description: 'Resume a versioned Atlas session by session ID or resume handle.', inputSchema: { type: 'object', properties: { session_id: { type: 'string' }, resume_handle: { type: 'string' } }, additionalProperties: false }, annotations: READ_ONLY },
   { name: 'atlas_checkpoint_session', description: 'Persist a versioned session checkpoint with optimistic session-version checks, durable delta, expected canonical version, causal links and unfinished-work handle.', inputSchema: { type: 'object', properties: { session_id: { type: 'string' }, expected_session_version: { type: 'integer' }, expected_canonical_version: { type: 'integer' }, project_key: { type: 'string' }, context: { type: 'object' }, delta: { type: 'object' }, checkpoint_state: { type: 'object' }, conflict_state: { type: 'object' }, causal_links: { type: 'array', items: { type: 'object' } }, unfinished_handle: { type: 'string' } }, additionalProperties: false }, annotations: WRITE_SAFE },
+  { name: 'atlas_list_execution_runs', description: 'List canonical execution runs with status, revision, progress counters and resume handles.', inputSchema: { type: 'object', properties: { status: { type: 'string' }, active_only: { type: 'boolean' }, limit: { type: 'integer', minimum: 1, maximum: 100 } }, additionalProperties: false }, annotations: READ_ONLY },
+  { name: 'atlas_get_execution_run', description: 'Load one canonical execution run including ordered steps, progress and recent run events.', inputSchema: { type: 'object', properties: { run_id: { type: 'string' }, run_key: { type: 'string' }, run_revision: { type: 'integer', minimum: 1 }, resume_handle: { type: 'string' } }, additionalProperties: false }, annotations: READ_ONLY },
+  { name: 'atlas_start_execution_run', description: 'Create or resume a canonical execution run from a machine-readable runbook so progress is durable and resumable.', inputSchema: { type: 'object', properties: { runbook: { type: 'object' } }, required: ['runbook'], additionalProperties: false }, annotations: WRITE_SAFE },
+  { name: 'atlas_claim_next_execution_step', description: 'Claim the next dependency-satisfied execution step and move the run into active work.', inputSchema: { type: 'object', properties: { run_id: { type: 'string' }, run_key: { type: 'string' }, run_revision: { type: 'integer', minimum: 1 }, resume_handle: { type: 'string' }, expected_run_version: { type: 'integer' } }, additionalProperties: false }, annotations: WRITE_SAFE },
+  { name: 'atlas_update_execution_step', description: 'Update non-terminal execution step state such as in-progress metadata, summaries or waivers without faking completion.', inputSchema: { type: 'object', properties: { run_id: { type: 'string' }, run_key: { type: 'string' }, run_revision: { type: 'integer', minimum: 1 }, step_id: { type: 'string' }, step_key: { type: 'string' }, expected_run_version: { type: 'integer' }, status: { type: 'string', enum: ['pending', 'in_progress', 'skipped'] }, result_summary: { type: 'string' }, blocked_reason: { type: 'string' }, waiver_metadata: { type: 'object' }, last_checkpoint_id: { type: 'string' } }, additionalProperties: false }, annotations: WRITE_SAFE },
+  { name: 'atlas_complete_execution_step', description: 'Complete an execution step only after required evidence or an explicit waiver has been recorded.', inputSchema: { type: 'object', properties: { run_id: { type: 'string' }, run_key: { type: 'string' }, run_revision: { type: 'integer', minimum: 1 }, step_id: { type: 'string' }, step_key: { type: 'string' }, expected_run_version: { type: 'integer' }, result_summary: { type: 'string' }, waiver_metadata: { type: 'object' }, last_checkpoint_id: { type: 'string' } }, additionalProperties: false }, annotations: WRITE_SAFE },
+  { name: 'atlas_block_execution_step', description: 'Block an execution step explicitly with a blocker reason so the run cannot silently drift forward.', inputSchema: { type: 'object', properties: { run_id: { type: 'string' }, run_key: { type: 'string' }, run_revision: { type: 'integer', minimum: 1 }, step_id: { type: 'string' }, step_key: { type: 'string' }, expected_run_version: { type: 'integer' }, blocked_reason: { type: 'string' }, result_summary: { type: 'string' }, last_checkpoint_id: { type: 'string' } }, required: ['blocked_reason'], additionalProperties: false }, annotations: WRITE_SAFE },
+  { name: 'atlas_record_execution_evidence', description: 'Attach canonical evidence to an execution step using stable evidence IDs before completion is claimed.', inputSchema: { type: 'object', properties: { run_id: { type: 'string' }, run_key: { type: 'string' }, run_revision: { type: 'integer', minimum: 1 }, step_id: { type: 'string' }, step_key: { type: 'string' }, expected_run_version: { type: 'integer' }, evidence: { type: 'object' } }, required: ['evidence'], additionalProperties: false }, annotations: WRITE_SAFE },
+  { name: 'atlas_report_execution_progress', description: 'Return canonical execution-run progress counters and a user-facing progress string such as 5/25 steps.', inputSchema: { type: 'object', properties: { run_id: { type: 'string' }, run_key: { type: 'string' }, run_revision: { type: 'integer', minimum: 1 }, resume_handle: { type: 'string' } }, additionalProperties: false }, annotations: READ_ONLY },
+  { name: 'atlas_resume_execution_run', description: 'Resume a canonical execution run together with linked session context and the latest durable step state.', inputSchema: { type: 'object', properties: { run_id: { type: 'string' }, run_key: { type: 'string' }, run_revision: { type: 'integer', minimum: 1 }, resume_handle: { type: 'string' } }, additionalProperties: false }, annotations: READ_ONLY },
   { name: 'atlas_dashboard', description: 'Return the Atlas dashboard backend model: Daily Brief, next action, WIP, blockers, calendar state, agents, QA, conflicts, health, automations and recent state.', inputSchema: { type: 'object', properties: { now: { type: 'string' }, active_project_id: { type: 'string' } }, additionalProperties: false }, annotations: READ_ONLY },
   { name: 'atlas_control_plane_activity', description: 'Inspect persisted agent routing, QA runs, health observations, daily plans and open conflicts.', inputSchema: { type: 'object', properties: { limit: { type: 'integer', minimum: 1, maximum: 100 } }, additionalProperties: false }, annotations: READ_ONLY },
   { name: 'atlas_critic_qa', description: 'Run the independent Atlas QA gate over requirements, evidence, tests, scope, dependencies and contradictions.', inputSchema: qaSchema, annotations: READ_ONLY },
@@ -161,6 +197,16 @@ export async function dispatchTool(name, args = {}) {
     case 'atlas_today_record': return todayAndRecord(args);
     case 'atlas_resume_session': return resumeSession(args);
     case 'atlas_checkpoint_session': return checkpointSession(args);
+    case 'atlas_list_execution_runs': return listExecutionRuns(args);
+    case 'atlas_get_execution_run': return getExecutionRun(args);
+    case 'atlas_start_execution_run': return startExecutionRun(args);
+    case 'atlas_claim_next_execution_step': return claimNextExecutionStep(args);
+    case 'atlas_update_execution_step': return updateExecutionStep(args);
+    case 'atlas_complete_execution_step': return completeExecutionStep(args);
+    case 'atlas_block_execution_step': return blockExecutionStep(args);
+    case 'atlas_record_execution_evidence': return recordExecutionEvidence(args);
+    case 'atlas_report_execution_progress': return reportExecutionProgress(args);
+    case 'atlas_resume_execution_run': return resumeExecutionRun(args);
     case 'atlas_dashboard': return getAtlasDashboard(args);
     case 'atlas_control_plane_activity': return getControlPlaneActivity(args);
     case 'atlas_critic_qa': return runCriticQA(args);
@@ -270,7 +316,7 @@ if (isDirectExecution()) {
   });
   const shutdown = async () => {
     await Promise.allSettled([
-      closeAtlasStorePool(), closeConnectorRegistryPool(), closeAutoIngestPool(), closeReconciliationPool(), closeRouteExecutorPool(), closeSystemHealthPool(), closeControlPlanePool()
+      closeAtlasStorePool(), closeConnectorRegistryPool(), closeAutoIngestPool(), closeReconciliationPool(), closeRouteExecutorPool(), closeSystemHealthPool(), closeControlPlanePool(), closeExecutionRunPool()
     ]);
     process.exit(0);
   };

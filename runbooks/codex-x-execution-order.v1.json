@@ -1,0 +1,238 @@
+{
+  "run_key": "codex-x-execution-order-v2",
+  "run_revision": 1,
+  "project_key": "atlas",
+  "task_family": "codex_x",
+  "program_key": "chatgpt-atlas-production",
+  "metadata": {
+    "source": "REQUIRED CODEX EXECUTION ORDER v2",
+    "created_at": "2026-08-15",
+    "description": "Canonical execution order for Atlas + ChatGPT production hardening."
+  },
+  "steps": [
+    {
+      "step_key": "cx001-deployment-provenance",
+      "title": "Lock deployment provenance and evidence capture",
+      "canonical_task_key": "CX-001",
+      "instructions_json": {
+        "goal": "Verify the exact deployed build, production URL, and evidence recording path before new work begins."
+      },
+      "evidence_requirements_json": {
+        "required_ids": ["commit", "deployment", "production-readback"]
+      },
+      "required_tests": ["live-readback"],
+      "required_live_verification": ["production state matches expected build"],
+      "rollback_note": "Pause further work if deployment provenance cannot be reconciled."
+    },
+    {
+      "step_key": "cx002-responses-migration",
+      "title": "Eliminate remaining Assistants API dependencies before the 2026-08-26 deadline",
+      "canonical_task_key": "CX-002",
+      "depends_on": ["cx001-deployment-provenance"],
+      "instructions_json": {
+        "goal": "Migrate remaining runtime dependencies to Responses-first architecture."
+      },
+      "evidence_requirements_json": {
+        "required_ids": ["commit", "tests", "production-readback"]
+      },
+      "required_tests": ["api regression", "dependency scan"],
+      "required_live_verification": ["live runtime no longer depends on Assistants API"],
+      "rollback_note": "Revert only the migration unit if live read-back fails."
+    },
+    {
+      "step_key": "cx006-cx024-security-privacy",
+      "title": "Harden public MCP auth and privacy boundaries",
+      "canonical_task_key": "CX-006+CX-024",
+      "depends_on": ["cx002-responses-migration"],
+      "instructions_json": {
+        "goal": "Keep OAuth enforcement, scope boundaries, and sensitivity routing correct before broader execution automation."
+      },
+      "evidence_requirements_json": {
+        "required_ids": ["tests", "security-check", "production-readback"]
+      },
+      "required_tests": ["auth failure paths", "sensitivity policy regression"],
+      "required_live_verification": ["public MCP fails closed without valid auth"],
+      "rollback_note": "Rollback immediately if public auth or redaction safety regresses."
+    },
+    {
+      "step_key": "cx007-mutation-journal",
+      "title": "Complete idempotent mutation journal and schema primitives",
+      "canonical_task_key": "CX-007",
+      "depends_on": ["cx006-cx024-security-privacy"],
+      "instructions_json": {
+        "goal": "Ensure canonical mutations carry provenance, verification, and rollback metadata."
+      },
+      "evidence_requirements_json": {
+        "required_ids": ["commit", "tests", "production-readback"]
+      },
+      "required_tests": ["duplicate retry", "timeout-after-commit", "read-back mismatch"],
+      "required_live_verification": ["mutation journal fields are visible in canonical state"],
+      "rollback_note": "Stop if canonical writes become non-idempotent."
+    },
+    {
+      "step_key": "cx009-session-bootstrap",
+      "title": "Complete canonical session bootstrap contract",
+      "canonical_task_key": "CX-009",
+      "depends_on": ["cx007-mutation-journal"],
+      "instructions_json": {
+        "goal": "Fresh sessions must reconstruct durable project context and capability state."
+      },
+      "evidence_requirements_json": {
+        "required_ids": ["commit", "tests", "production-readback"]
+      },
+      "required_tests": ["fresh-session bootstrap", "capability snapshot"],
+      "required_live_verification": ["bootstrap surface returns authoritative context"],
+      "rollback_note": "Rollback if fresh session context becomes incomplete or misleading."
+    },
+    {
+      "step_key": "cx011-ingestion-v2",
+      "title": "Upgrade Universal Ingestion to v2",
+      "canonical_task_key": "CX-011",
+      "depends_on": ["cx009-session-bootstrap"],
+      "instructions_json": {
+        "goal": "Version source events, claims, provenance, and supersession semantics."
+      },
+      "evidence_requirements_json": {
+        "required_ids": ["commit", "tests", "evidence"]
+      },
+      "required_tests": ["source versioning", "dedup history", "conflict lineage"],
+      "required_live_verification": ["durable memories explain origin and supersession history"],
+      "rollback_note": "Do not advance if provenance lineage becomes ambiguous."
+    },
+    {
+      "step_key": "cx003-cx005-cx016-connector-gateway",
+      "title": "Finish connector gateway, schema lifecycle, state machine, and identity discovery",
+      "canonical_task_key": "CX-003+CX-004+CX-005+CX-016",
+      "depends_on": ["cx011-ingestion-v2"],
+      "instructions_json": {
+        "goal": "Make connectors discoverable, health-aware, and identity-correct."
+      },
+      "evidence_requirements_json": {
+        "required_ids": ["tests", "connector-readback", "production-readback"]
+      },
+      "required_tests": ["tool surface drift", "identity selection", "connector state transitions"],
+      "required_live_verification": ["ChatGPT/Codex can inspect capabilities without guessing"],
+      "rollback_note": "Pause if capability discovery becomes stale or misleading."
+    },
+    {
+      "step_key": "cx013-cx017-protocol-orchestration",
+      "title": "Modernize protocol semantics and durable orchestration",
+      "canonical_task_key": "CX-013+CX-017",
+      "depends_on": ["cx003-cx005-cx016-connector-gateway"],
+      "instructions_json": {
+        "goal": "Ensure plan-execute-verify-critic loops are protocol-aware and resumable."
+      },
+      "evidence_requirements_json": {
+        "required_ids": ["commit", "tests", "production-readback"]
+      },
+      "required_tests": ["protocol negotiation", "durable orchestration regression"],
+      "required_live_verification": ["protocol and orchestration read-back match live behavior"],
+      "rollback_note": "Rollback if clients become incompatible with the public MCP surface."
+    },
+    {
+      "step_key": "cx010-cx025-cross-session-continuity",
+      "title": "Deliver cross-session and cross-device continuity",
+      "canonical_task_key": "CX-010+CX-025",
+      "depends_on": ["cx013-cx017-protocol-orchestration"],
+      "instructions_json": {
+        "goal": "Make work resumable with canonical checkpoints and device-aware capability continuity."
+      },
+      "evidence_requirements_json": {
+        "required_ids": ["commit", "tests", "production-readback"]
+      },
+      "required_tests": ["checkpoint resume", "stale write", "cross-device resume"],
+      "required_live_verification": ["new session resumes exact unfinished canonical work"],
+      "rollback_note": "Stop if checkpoint/resume state becomes inconsistent."
+    },
+    {
+      "step_key": "cx018-cx019-scope-approval",
+      "title": "Enforce project scope and server-side approval policy",
+      "canonical_task_key": "CX-018+CX-019",
+      "depends_on": ["cx010-cx025-cross-session-continuity"],
+      "instructions_json": {
+        "goal": "Project boundary and approval classification must be canonical and server-side."
+      },
+      "evidence_requirements_json": {
+        "required_ids": ["tests", "policy-readback", "production-readback"]
+      },
+      "required_tests": ["cross-project leakage", "approval classification"],
+      "required_live_verification": ["server returns exact approval requirements"],
+      "rollback_note": "Rollback if scope or approval protections weaken."
+    },
+    {
+      "step_key": "cx020-command-layer",
+      "title": "Add command and dashboard layer on top of trustworthy health data",
+      "canonical_task_key": "CX-020",
+      "depends_on": ["cx018-cx019-scope-approval"],
+      "instructions_json": {
+        "goal": "Expose status, connector, resume, and system commands from canonical APIs."
+      },
+      "evidence_requirements_json": {
+        "required_ids": ["commit", "tests", "ui-readback"]
+      },
+      "required_tests": ["command surface regression", "dashboard projection"],
+      "required_live_verification": ["command layer reflects the same canonical data as execution APIs"],
+      "rollback_note": "Do not ship commands that fabricate health or capability state."
+    },
+    {
+      "step_key": "cx014-cx028-sync-recovery",
+      "title": "Harden sync, provider remediations, and Neon recovery safety",
+      "canonical_task_key": "CX-014+CX-021+CX-027+CX-028",
+      "depends_on": ["cx020-command-layer"],
+      "instructions_json": {
+        "goal": "Move event-driven sync, provider remediation, and backup/restore safety into production."
+      },
+      "evidence_requirements_json": {
+        "required_ids": ["tests", "recovery-evidence", "production-readback"]
+      },
+      "required_tests": ["cursor durability", "retry/dlq", "restore validation"],
+      "required_live_verification": ["recovery path is explicit and validated"],
+      "rollback_note": "Stop if recovery assumptions are unverified."
+    },
+    {
+      "step_key": "cx012-cx022-observability-release-gates",
+      "title": "Expand observability and production release gates",
+      "canonical_task_key": "CX-012+CX-022",
+      "depends_on": ["cx014-cx028-sync-recovery"],
+      "instructions_json": {
+        "goal": "Status and release decisions must be evidence-backed across execution planes."
+      },
+      "evidence_requirements_json": {
+        "required_ids": ["tests", "deployment", "production-readback"]
+      },
+      "required_tests": ["health plane separation", "release gate regression"],
+      "required_live_verification": ["deployment gating blocks unsafe releases"],
+      "rollback_note": "Rollback if critical release gates can be bypassed."
+    },
+    {
+      "step_key": "cx023-codex-automation",
+      "title": "Ship Codex execution automation and machine-readable work format",
+      "canonical_task_key": "CX-023",
+      "depends_on": ["cx012-cx022-observability-release-gates"],
+      "instructions_json": {
+        "goal": "Codify execution runs, progress accounting, and evidence rules so Codex can finish work durably."
+      },
+      "evidence_requirements_json": {
+        "required_ids": ["commit", "tests", "runbook", "production-readback"]
+      },
+      "required_tests": ["execution run orchestration", "progress reporting", "resume behavior"],
+      "required_live_verification": ["Codex can report canonical step progress and resume work"],
+      "rollback_note": "Do not advance if progress reporting is not backed by canonical state."
+    },
+    {
+      "step_key": "cx029-cx031-optimization-experiments",
+      "title": "Apply quality-gated performance work, then experimental routing and transcript enrichment",
+      "canonical_task_key": "CX-029+CX-030+CX-031",
+      "depends_on": ["cx023-codex-automation"],
+      "instructions_json": {
+        "goal": "Only ship optimizations or advanced routing when quality stays above the defined floor."
+      },
+      "evidence_requirements_json": {
+        "required_ids": ["tests", "quality-eval", "production-readback"]
+      },
+      "required_tests": ["quality floor", "cost/latency telemetry", "experimental capability gating"],
+      "required_live_verification": ["advanced behavior never outruns measured quality"],
+      "rollback_note": "Disable experiments immediately if they reduce correctness or traceability."
+    }
+  ]
+}

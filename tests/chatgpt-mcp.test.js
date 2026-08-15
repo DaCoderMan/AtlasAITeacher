@@ -27,10 +27,12 @@ test('remote MCP wraps list tool structured content in objects for ChatGPT valid
   const projects = [{ id: 'p1' }];
   const tasks = [{ id: 't1' }];
   const manifests = [{ id: 'm1' }];
+  const executionRuns = [{ id: 'r1' }];
 
   assert.deepEqual(structuredToolContent('atlas_projects', projects), { projects });
   assert.deepEqual(structuredToolContent('atlas_tasks', tasks), { tasks });
   assert.deepEqual(structuredToolContent('atlas_manifests', manifests), { manifests });
+  assert.deepEqual(structuredToolContent('atlas_list_execution_runs', executionRuns), { execution_runs: executionRuns });
   assert.deepEqual(structuredToolContent('atlas_manifests', manifests[0]), manifests[0]);
 });
 

@@ -10,6 +10,10 @@ Read-only:
 - `atlas_status`
 - `atlas_projects`
 - `atlas_tasks`
+- `atlas_list_execution_runs`
+- `atlas_get_execution_run`
+- `atlas_report_execution_progress`
+- `atlas_resume_execution_run`
 
 Write:
 - `atlas_ingest`
@@ -17,6 +21,12 @@ Write:
 - `atlas_create_task`
 - `atlas_update_task`
 - `atlas_update_project`
+- `atlas_start_execution_run`
+- `atlas_claim_next_execution_step`
+- `atlas_update_execution_step`
+- `atlas_complete_execution_step`
+- `atlas_block_execution_step`
+- `atlas_record_execution_evidence`
 
 ## Run locally
 
@@ -50,6 +60,26 @@ Keep secrets out of Git. Prefer environment/secret management on the machine run
 4. After meaningful decisions, progress, or new durable information, call `atlas_ingest` or `atlas_remember`.
 5. Do not send casual/transient content solely to create memory; Atlas Universal Ingestion performs classification and routing.
 6. Treat write tools as mutations that may affect canonical state.
+7. For long-running Codex jobs, use execution runs rather than chat-only checklists so progress like `5/25 steps` is computed from canonical state.
+
+## Execution runs
+
+Execution runs provide a durable wrapper around multi-step Codex work. Start a run from a machine-readable runbook, claim one coherent step at a time, record evidence, complete or block the step, then report progress from canonical state.
+
+The repository includes a runbook example at:
+
+```text
+runbooks/codex-x-execution-order.v1.json
+```
+
+The intended loop is:
+
+1. `atlas_start_execution_run`
+2. `atlas_claim_next_execution_step`
+3. do the work
+4. `atlas_record_execution_evidence`
+5. `atlas_complete_execution_step` or `atlas_block_execution_step`
+6. `atlas_report_execution_progress`
 
 ## Security boundary
 

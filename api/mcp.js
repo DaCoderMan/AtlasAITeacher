@@ -30,9 +30,19 @@ function rpcError(id, code, message, data = undefined) {
 export function structuredToolContent(toolName, value) {
   if (toolName === 'atlas_connector_test_matrix' && Array.isArray(value)) return { connector_tests: value };
   if (toolName === 'atlas_connectors' && Array.isArray(value)) return { connectors: value };
+  if (toolName === 'atlas_list_execution_runs' && Array.isArray(value)) return { execution_runs: value };
   if (toolName === 'atlas_session_bootstrap' && value && typeof value === 'object') return value;
   if (toolName === 'atlas_resume_session' && value && typeof value === 'object') return value;
   if (toolName === 'atlas_checkpoint_session' && value && typeof value === 'object') return value;
+  if (toolName === 'atlas_get_execution_run' && value && typeof value === 'object') return value;
+  if (toolName === 'atlas_start_execution_run' && value && typeof value === 'object') return value;
+  if (toolName === 'atlas_claim_next_execution_step' && value && typeof value === 'object') return value;
+  if (toolName === 'atlas_update_execution_step' && value && typeof value === 'object') return value;
+  if (toolName === 'atlas_complete_execution_step' && value && typeof value === 'object') return value;
+  if (toolName === 'atlas_block_execution_step' && value && typeof value === 'object') return value;
+  if (toolName === 'atlas_record_execution_evidence' && value && typeof value === 'object') return value;
+  if (toolName === 'atlas_report_execution_progress' && value && typeof value === 'object') return value;
+  if (toolName === 'atlas_resume_execution_run' && value && typeof value === 'object') return value;
   if (toolName === 'atlas_projects' && Array.isArray(value)) return { projects: value };
   if (toolName === 'atlas_tasks' && Array.isArray(value)) return { tasks: value };
   if (toolName === 'atlas_manifests' && Array.isArray(value)) return { manifests: value };

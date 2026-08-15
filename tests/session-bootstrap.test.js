@@ -26,7 +26,10 @@ test('session bootstrap envelope returns versioned context goals memory capabili
       ]
     },
     dashboard: {
-      persisted_health: [{ service_id: 'github', health: 'degraded', failure_summary: 'rate limited' }]
+      persisted_health: [{ service_id: 'github', health: 'degraded', failure_summary: 'rate limited' }],
+      execution_runs: {
+        active: [{ id: 'run-1', run_key: 'codex-job', progress: { progress_message: '1/3 steps' } }]
+      }
     },
     now: '2026-08-15T12:00:00Z'
   });
@@ -36,4 +39,5 @@ test('session bootstrap envelope returns versioned context goals memory capabili
   assert.equal(envelope.memory[0].kind, 'decision');
   assert.equal(envelope.capability_snapshot.capability_epoch, 'epoch-1');
   assert.equal(envelope.freshness.degraded_dependencies[0].service_id, 'github');
+  assert.equal(envelope.active_execution_run.id, 'run-1');
 });

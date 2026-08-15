@@ -8,7 +8,11 @@ const EXPECTED = [
   'atlas_search', 'atlas_context', 'atlas_status', 'atlas_connectors', 'atlas_connector_test_matrix', 'atlas_session_bootstrap', 'atlas_projects', 'atlas_tasks',
   'atlas_manifests', 'atlas_resolve_context', 'atlas_agents', 'atlas_route',
   'atlas_route_record', 'atlas_system_health', 'atlas_system_health_record',
-  'atlas_today', 'atlas_today_record', 'atlas_resume_session', 'atlas_checkpoint_session', 'atlas_dashboard', 'atlas_control_plane_activity',
+  'atlas_today', 'atlas_today_record', 'atlas_resume_session', 'atlas_checkpoint_session',
+  'atlas_list_execution_runs', 'atlas_get_execution_run', 'atlas_start_execution_run',
+  'atlas_claim_next_execution_step', 'atlas_update_execution_step', 'atlas_complete_execution_step',
+  'atlas_block_execution_step', 'atlas_record_execution_evidence', 'atlas_report_execution_progress', 'atlas_resume_execution_run',
+  'atlas_dashboard', 'atlas_control_plane_activity',
   'atlas_critic_qa', 'atlas_critic_qa_record',
   'atlas_ingest', 'atlas_enqueue', 'atlas_automation_status', 'atlas_run_worker',
   'atlas_retry_routes', 'atlas_reconcile', 'atlas_remember', 'atlas_create_task', 'atlas_update_task', 'atlas_update_project'
@@ -23,7 +27,9 @@ test('read tools are annotated read-only and write/automation tools are not', ()
     'atlas_search', 'atlas_context', 'atlas_status', 'atlas_projects', 'atlas_tasks',
     'atlas_connectors', 'atlas_connector_test_matrix', 'atlas_session_bootstrap',
     'atlas_manifests', 'atlas_resolve_context', 'atlas_agents', 'atlas_route',
-    'atlas_system_health', 'atlas_today', 'atlas_resume_session', 'atlas_dashboard', 'atlas_control_plane_activity',
+    'atlas_system_health', 'atlas_today', 'atlas_resume_session',
+    'atlas_list_execution_runs', 'atlas_get_execution_run', 'atlas_report_execution_progress', 'atlas_resume_execution_run',
+    'atlas_dashboard', 'atlas_control_plane_activity',
     'atlas_critic_qa', 'atlas_automation_status'
   ]);
   for (const tool of toolDefinitions) {
@@ -92,6 +98,21 @@ test('session checkpoint tools expose bounded checkpoint and resume fields', () 
   assert.equal(checkpoint.inputSchema.properties.expected_canonical_version.type, 'integer');
   assert.equal(checkpoint.inputSchema.properties.delta.type, 'object');
   assert.equal(checkpoint.inputSchema.properties.causal_links.type, 'array');
+});
+
+test('execution run tools expose bounded runbook, progress, and evidence contracts', () => {
+  const start = toolDefinitions.find(item => item.name === 'atlas_start_execution_run');
+  const claim = toolDefinitions.find(item => item.name === 'atlas_claim_next_execution_step');
+  const record = toolDefinitions.find(item => item.name === 'atlas_record_execution_evidence');
+  const report = toolDefinitions.find(item => item.name === 'atlas_report_execution_progress');
+  assert.equal(start.annotations.readOnlyHint, false);
+  assert.equal(claim.annotations.readOnlyHint, false);
+  assert.equal(record.annotations.readOnlyHint, false);
+  assert.equal(report.annotations.readOnlyHint, true);
+  assert.equal(start.inputSchema.required[0], 'runbook');
+  assert.equal(claim.inputSchema.properties.expected_run_version.type, 'integer');
+  assert.equal(record.inputSchema.properties.evidence.type, 'object');
+  assert.equal(report.inputSchema.properties.run_key.type, 'string');
 });
 
 test('Atlas MCP does not expose raw SQL or shell tools', () => {
