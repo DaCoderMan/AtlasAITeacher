@@ -13,6 +13,11 @@ import {
   negotiateProtocolVersion,
   validateProtocolHeader
 } from '../lib/mcp-protocol.js';
+import {
+  capabilitySnapshot,
+  compareCapabilitySnapshot,
+  parseClientCapabilitySnapshot
+} from '../lib/capability-lifecycle.js';
 
 function rpcResult(id, result) {
   return { jsonrpc: '2.0', id, result };
@@ -52,6 +57,13 @@ function exposedToolDefinitions() {
     : toolDefinitions;
 }
 
+function exposedCapabilitySnapshot() {
+  return capabilitySnapshot(exposedToolDefinitions(), {
+    remoteReadOnly: remoteReadOnlyEnabled(),
+    oauth: oauthEnabled()
+  });
+}
+
 function authFailure(req, res, auth) {
   if (oauthEnabled()) setOAuthChallenge(req, res, { scope: 'atlas.read', error: 'invalid_token' });
   return res.status(auth?.status || 401).json(rpcError(null, -32001, auth?.reason || 'unauthorized'));
@@ -65,6 +77,7 @@ export default async function handler(req, res) {
   res.setHeader('Cache-Control', 'no-store');
 
   if (req.method === 'GET') {
+    const snapshot = exposedCapabilitySnapshot();
     return res.status(200).json({
       ok: true,
       service: 'atlas-mcp',
@@ -75,7 +88,10 @@ export default async function handler(req, res) {
       legacyBearer: legacyBearerEnabled(),
       tunnelUnauthenticated: tunnelUnauthenticatedEnabled(),
       remoteReadOnly: remoteReadOnlyEnabled(),
-      exposedToolCount: exposedToolDefinitions().length
+      exposedToolCount: exposedToolDefinitions().length,
+      capabilityEpoch: snapshot.capability_epoch,
+      toolSchemaHash: snapshot.tool_schema_hash,
+      scopeProfile: snapshot.scope_profile
     });
   }
 
@@ -98,10 +114,18 @@ export default async function handler(req, res) {
 
   if (message.method === 'initialize') {
     const negotiated = negotiateProtocolVersion(message.params?.protocolVersion);
+    const snapshot = exposedCapabilitySnapshot();
     res.setHeader('MCP-Protocol-Version', negotiated);
     return res.status(200).json(rpcResult(message.id, {
       protocolVersion: negotiated,
-      capabilities: { tools: { listChanged: false } },
+      capabilities: {
+        tools: {
+          listChanged: false,
+          capabilityEpoch: snapshot.capability_epoch,
+          toolSchemaHash: snapshot.tool_schema_hash,
+          scopeProfile: snapshot.scope_profile
+        }
+      },
       serverInfo: { name: 'atlas', title: 'Atlas AI Operating System', version: '2.0.0' },
       instructions: remoteReadOnlyEnabled()
         ? 'Atlas is running in remote read-only mode. Use Atlas for canonical project context, planning, health, search and status; mutation tools are intentionally not exposed.'
@@ -122,11 +146,20 @@ export default async function handler(req, res) {
   if (message.method === 'ping') return res.status(200).json(rpcResult(message.id, {}));
 
   if (message.method === 'tools/list') {
+    const snapshot = exposedCapabilitySnapshot();
+    const clientSnapshot = parseClientCapabilitySnapshot(req, message.params || {});
+    const schemaState = compareCapabilitySnapshot(snapshot, clientSnapshot);
     if (!requireScope(auth, 'atlas.read') && auth.mode === 'oauth') {
       setOAuthChallenge(req, res, { scope: 'atlas.read', error: 'insufficient_scope' });
       return res.status(403).json(rpcError(message.id, -32003, 'insufficient_scope'));
     }
-    return res.status(200).json(rpcResult(message.id, { tools: exposedToolDefinitions() }));
+    return res.status(200).json(rpcResult(message.id, {
+      tools: exposedToolDefinitions(),
+      capability_epoch: snapshot.capability_epoch,
+      tool_schema_hash: snapshot.tool_schema_hash,
+      scope_profile: snapshot.scope_profile,
+      schema_state: schemaState.stale ? schemaState : { stale: false }
+    }));
   }
 
   if (message.method === 'tools/call') {
@@ -140,6 +173,10 @@ export default async function handler(req, res) {
     if (auth.mode === 'oauth' && !requireScope(auth, requiredScope)) {
       setOAuthChallenge(req, res, { scope: requiredScope, error: 'insufficient_scope' });
       return res.status(403).json(rpcError(message.id, -32003, 'insufficient_scope'));
+    }
+    const schemaState = compareCapabilitySnapshot(exposedCapabilitySnapshot(), parseClientCapabilitySnapshot(req, message.params || {}));
+    if (schemaState.frozen) {
+      return res.status(409).json(rpcError(message.id, -32009, 'stale_client_schema', schemaState));
     }
     try {
       assertAllowedMcpMutation(toolName, message.params?.arguments || {});

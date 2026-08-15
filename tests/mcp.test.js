@@ -111,5 +111,7 @@ test('stdio MCP handshake and tools/list work without database access', async ()
   const init = lines.find(x => x.id === 1);
   const listed = lines.find(x => x.id === 2);
   assert.equal(init?.result?.serverInfo?.name, 'atlas');
+  assert.equal(typeof init?.result?.capabilities?.tools?.capabilityEpoch, 'string');
+  assert.equal(typeof listed?.result?.tool_schema_hash, 'string');
   assert.deepEqual(listed?.result?.tools?.map(t => t.name), EXPECTED);
 });

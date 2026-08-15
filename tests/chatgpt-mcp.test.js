@@ -46,6 +46,8 @@ test('remote MCP initializes for ChatGPT', async () => {
   const res = await call({ jsonrpc: '2.0', id: 1, method: 'initialize', params: { protocolVersion: '2025-06-18' } });
   assert.equal(res.statusCode, 200);
   assert.equal(res.body.result.serverInfo.name, 'atlas');
+  assert.equal(typeof res.body.result.capabilities.tools.capabilityEpoch, 'string');
+  assert.equal(typeof res.body.result.capabilities.tools.toolSchemaHash, 'string');
 });
 
 test('remote MCP exposes same Atlas tools as Codex MCP by default', async () => {
@@ -111,6 +113,9 @@ test('remote MCP health does not advertise legacy bearer on public OAuth deploym
   assert.equal(res.statusCode, 200);
   assert.equal(res.body.oauth, true);
   assert.equal(res.body.legacyBearer, false);
+  assert.equal(typeof res.body.capabilityEpoch, 'string');
+  assert.equal(typeof res.body.toolSchemaHash, 'string');
+  assert.equal(res.body.scopeProfile, 'atlas.read atlas.write');
 });
 
 test('remote MCP rejects secret-class durable memory writes before dispatch', async () => {
@@ -133,6 +138,40 @@ test('remote MCP rejects secret-class durable memory writes before dispatch', as
   assert.equal(res.statusCode, 200);
   assert.equal(res.body.result.isError, true);
   assert.match(res.body.result.content[0].text, /secret_sensitivity_requires_vault/);
+});
+
+test('remote MCP tools/list returns capability snapshot metadata', async () => {
+  const res = await call({ jsonrpc: '2.0', id: 40, method: 'tools/list', params: {} });
+  assert.equal(res.statusCode, 200);
+  assert.equal(typeof res.body.result.capability_epoch, 'string');
+  assert.equal(typeof res.body.result.tool_schema_hash, 'string');
+  assert.equal(res.body.result.scope_profile, 'implicit_or_legacy');
+});
+
+test('remote MCP can reject frozen stale client schemas before tool execution', async () => {
+  const req = {
+    method: 'POST',
+    headers: {},
+    body: {
+      jsonrpc: '2.0',
+      id: 41,
+      method: 'tools/call',
+      params: {
+        name: 'atlas_search',
+        arguments: { query: 'atlas' },
+        client_capability_epoch: 'stale-epoch',
+        client_tool_schema_hash: 'stale-hash',
+        client_scope_profile: 'atlas.read',
+        freeze_tool_schema: true,
+        client_tool_names: ['atlas_search']
+      }
+    }
+  };
+  const res = mockResponse();
+  process.env = { ...process.env, ATLAS_MCP_ALLOW_UNAUTHENTICATED: 'true' };
+  await handler(req, res);
+  assert.equal(res.statusCode, 409);
+  assert.equal(res.body.error.message, 'stale_client_schema');
 });
 
 test('dedicated atlas-mcp deploy root points at the generated shared runtime', async () => {

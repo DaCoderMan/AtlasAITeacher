@@ -27,6 +27,7 @@ import { routeAgent } from '../lib/router.js';
 import { checkSystemHealth, closeSystemHealthPool } from '../lib/system-health.js';
 import { getAtlasDashboard } from '../lib/dashboard.js';
 import { runCriticQA } from '../lib/critic.js';
+import { capabilitySnapshot } from '../lib/capability-lifecycle.js';
 import {
   routeAndRecord,
   criticAndRecord,
@@ -120,6 +121,10 @@ export const toolDefinitions = [
   { name: 'atlas_update_project', description: 'Update an existing canonical Atlas project without bypassing storage and ingestion rules.', inputSchema: { type: 'object', properties: { project_id: { type: 'string' }, status: { type: 'string' }, priority: { type: 'integer', minimum: 1, maximum: 5 }, next_action: { type: ['string','null'] }, blockers: { type: ['string','null'] }, objective: { type: ['string','null'] }, idempotency_key: { type: 'string' }, correlation_id: { type: 'string' } }, required: ['project_id'], additionalProperties: false }, annotations: WRITE_SAFE }
 ];
 
+function localCapabilitySnapshot() {
+  return capabilitySnapshot(toolDefinitions, { remoteReadOnly: false, oauth: false });
+}
+
 export async function dispatchTool(name, args = {}) {
   switch (name) {
     case 'atlas_search': return atlasSearch(args);
@@ -192,11 +197,19 @@ async function handle(message) {
   if (!message || message.jsonrpc !== '2.0') return;
   if (message.method === 'notifications/initialized') return;
   if (message.method === 'initialize') {
+    const snapshot = localCapabilitySnapshot();
     send({
       jsonrpc: '2.0', id: message.id,
       result: {
         protocolVersion: message.params?.protocolVersion || '2025-06-18',
-        capabilities: { tools: { listChanged: false } },
+        capabilities: {
+          tools: {
+            listChanged: false,
+            capabilityEpoch: snapshot.capability_epoch,
+            toolSchemaHash: snapshot.tool_schema_hash,
+            scopeProfile: snapshot.scope_profile
+          }
+        },
         serverInfo: { name: 'atlas', version: '2.0.0' },
         instructions: 'Atlas is the canonical project-aware orchestration, context, persistence, planning, QA and ingestion gateway. Resolve scope before significant work, inspect health instead of assuming connectivity, use Critic/QA for important completion claims, and persist meaningful routing/planning/results when permissions allow.'
       }
@@ -204,7 +217,17 @@ async function handle(message) {
     return;
   }
   if (message.method === 'tools/list') {
-    send({ jsonrpc: '2.0', id: message.id, result: { tools: toolDefinitions } });
+    const snapshot = localCapabilitySnapshot();
+    send({
+      jsonrpc: '2.0',
+      id: message.id,
+      result: {
+        tools: toolDefinitions,
+        capability_epoch: snapshot.capability_epoch,
+        tool_schema_hash: snapshot.tool_schema_hash,
+        scope_profile: snapshot.scope_profile
+      }
+    });
     return;
   }
   if (message.method === 'tools/call') {
