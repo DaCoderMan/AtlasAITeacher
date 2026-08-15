@@ -9,6 +9,25 @@ test('ChatGPT voice adapter marks transcript source correctly', () => {
   assert.equal(event.thread_id, 'c1');
 });
 
+test('transcript enrichment preserves authoritative source metadata', () => {
+  process.env.ATLAS_QUALITY_EVAL_AT = '2026-08-15T11:30:00Z';
+  process.env.ATLAS_QUALITY_EVAL_SCORE = '0.92';
+  process.env.ATLAS_TRANSCRIPT_ENRICHMENT_ENABLED = 'true';
+  const event = fromChatGPTMessage(
+    { id: 'm2', role: 'user', text: 'voice transcript body' },
+    {
+      conversation_id: 'c2',
+      voice: true,
+      transcript_enrichment: { summary: 'short summary', keywords: ['atlas', 'atlas', 'voice'] }
+    }
+  );
+  assert.equal(event.source, 'chatgpt_voice');
+  assert.equal(event.source_event_id, 'm2');
+  assert.equal(event.provenance.transcript_enrichment.preserved_source_event_id, 'm2');
+  assert.equal(event.content_json.transcript_enrichment.authoritative_source_event_id, 'm2');
+  assert.deepEqual(event.content_json.transcript_enrichment.keywords, ['atlas', 'voice']);
+});
+
 test('WhatsApp adapter preserves chat provenance', () => {
   const event = fromWhatsAppMessage({ id: 'w1', from: '9725', text: { body: 'hello' } }, { chat_id: 'chat1' });
   assert.equal(event.source, 'whatsapp');

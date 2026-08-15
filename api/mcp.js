@@ -19,6 +19,7 @@ import {
   parseClientCapabilitySnapshot
 } from '../lib/capability-lifecycle.js';
 import { assertReleaseGateOpen, getReleaseGateStatus } from '../lib/release-gate.js';
+import { getQualityGateStatus } from '../lib/quality-gate.js';
 
 function rpcResult(id, result) {
   return { jsonrpc: '2.0', id, result };
@@ -107,7 +108,8 @@ export default async function handler(req, res) {
       capabilityEpoch: snapshot.capability_epoch,
       toolSchemaHash: snapshot.tool_schema_hash,
       scopeProfile: snapshot.scope_profile,
-      releaseGate: getReleaseGateStatus()
+      releaseGate: getReleaseGateStatus(),
+      qualityGate: getQualityGateStatus()
     });
   }
 
