@@ -1,0 +1,50 @@
+{
+  "version": "neon-recovery.v1",
+  "owner": "atlas",
+  "purpose": "Non-destructive Neon recovery and remediation procedure for canonical Atlas state.",
+  "preconditions": [
+    "Confirm Atlas production reports Neon healthy enough to inspect or degraded with a concrete failure mode.",
+    "Never run recovery proof work directly against the production main branch.",
+    "Prefer disposable branch-based validation before any remediation touching canonical state."
+  ],
+  "recovery_drill": {
+    "strategy": "branch_clone_validation",
+    "steps": [
+      {
+        "id": "verify-health",
+        "action": "Read Atlas production system health and capture the current Neon status and timestamp."
+      },
+      {
+        "id": "create-proof-branch",
+        "action": "Create a disposable Neon branch from main for recovery proof work."
+      },
+      {
+        "id": "verify-branch-compute",
+        "action": "Confirm the proof branch receives its own active compute surface."
+      },
+      {
+        "id": "record-evidence",
+        "action": "Capture project id, parent branch id, proof branch id, compute id, timestamps, and operator."
+      },
+      {
+        "id": "cleanup-proof-branch",
+        "action": "Delete the disposable proof branch after verification to prove reversibility."
+      }
+    ]
+  },
+  "rollback_and_safety": {
+    "destructive_actions_allowed": false,
+    "cleanup_required": true,
+    "cleanup_action": "Delete the disposable proof branch after evidence capture.",
+    "escalate_when": [
+      "A restore requires writing to main.",
+      "Point-in-time recovery needs operator approval or a higher-risk data change.",
+      "Neon control-plane access is unavailable."
+    ]
+  },
+  "required_evidence_ids": [
+    "tests",
+    "recovery-evidence",
+    "production-readback"
+  ]
+}
