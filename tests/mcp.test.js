@@ -37,6 +37,17 @@ test('task update is write-scoped and exposes only controlled fields', () => {
   assert.deepEqual(tool.inputSchema.required, ['task_id']);
   assert.equal(tool.inputSchema.additionalProperties, false);
   assert.equal(tool.inputSchema.properties.sql, undefined);
+  assert.equal(tool.inputSchema.properties.idempotency_key.type, 'string');
+  assert.equal(tool.inputSchema.properties.correlation_id.type, 'string');
+});
+
+test('canonical write tools expose mutation journal metadata fields', () => {
+  const createTask = toolDefinitions.find(item => item.name === 'atlas_create_task');
+  const updateProject = toolDefinitions.find(item => item.name === 'atlas_update_project');
+  assert.equal(createTask.inputSchema.properties.idempotency_key.type, 'string');
+  assert.equal(createTask.inputSchema.properties.correlation_id.type, 'string');
+  assert.equal(updateProject.inputSchema.properties.idempotency_key.type, 'string');
+  assert.equal(updateProject.inputSchema.properties.correlation_id.type, 'string');
 });
 
 test('Atlas MCP does not expose raw SQL or shell tools', () => {
