@@ -25,6 +25,15 @@ Atlas is Yonatan's global AI command center and Life OS. It orchestrates project
 - After meaningful progress, decisions, commitments, or durable discoveries, send them through `atlas_ingest` or `atlas_remember` so Universal Ingestion can classify, deduplicate, route, and audit them.
 - Do not indiscriminately persist low-value transient chatter.
 
+## Skills rule
+- Reusable orchestration skills live in `skills/`; `skills/registry.json` is the machine-readable skill index.
+- Before using a broad specialist agent for an operational request, resolve project scope and check whether a registered skill already covers the intent.
+- Prefer the narrowest deterministic skill/workflow that can complete the task; use a general agent for planning or judgment that is not covered by a skill.
+- Skills describe provider-neutral capability contracts. Plugins, connectors, MCP tools, APIs, and local services implement those capabilities and may be substituted when the contract is preserved.
+- If several skills are required, compose them through the Cross-System Workflow Builder rather than allowing uncontrolled cross-tool improvisation.
+- Apply each skill's validation, idempotency, audit, failure, and approval rules.
+- When the Atlas MCP/plugin is unavailable or intentionally skipped, continue using the skills layer with available authoritative connectors and repository-defined Atlas architecture. Never report canonical Atlas state as updated unless its canonical destination was actually written.
+
 ## Automatic ingestion rule
 - Atlas automation is expected to run continuously when the host is online.
 - Connector/background events should normally enter through `atlas_enqueue`; the queue provides deduplication, retry tracking, source health, policy evaluation, routing, and auditability.
