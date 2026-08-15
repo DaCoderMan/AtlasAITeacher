@@ -18,6 +18,7 @@ import { ingestEvent } from '../lib/ingestion.js';
 import { enqueueSourceEvent, processQueuedEvents, getAutomationStatus, closeAutoIngestPool } from '../lib/auto-ingest.js';
 import { reconcileAtlas, closeReconciliationPool } from '../lib/reconciliation.js';
 import { retryRoutes, closeRouteExecutorPool } from '../lib/route-executor.js';
+import { withMutationMetadata } from '../lib/mutation-metadata.js';
 import { listProjectManifests, getProjectManifest } from '../lib/manifests.js';
 import { resolveContext } from '../lib/context-resolver.js';
 import { listAgents } from '../lib/agent-registry.js';
@@ -92,7 +93,7 @@ export const toolDefinitions = [
       type: 'object', properties: {
         source: { type: 'string' }, source_event_id: { type: 'string' }, thread_id: { type: 'string' }, session_id: { type: 'string' }, actor: { type: 'string' },
         occurred_at: { type: 'string' }, content_type: { type: 'string' }, text: { type: 'string' }, project_hint: { type: 'string' }, sensitivity: { type: 'string' },
-        language: { type: 'string' }, provenance: { type: 'object' }
+        language: { type: 'string' }, provenance: { type: 'object' }, idempotency_key: { type: 'string' }, correlation_id: { type: 'string' }
       }, required: ['source', 'text'], additionalProperties: false
     }, annotations: WRITE_SAFE
   },
@@ -103,7 +104,7 @@ export const toolDefinitions = [
       type: 'object', properties: {
         source: { type: 'string' }, source_event_id: { type: 'string' }, thread_id: { type: 'string' }, session_id: { type: 'string' }, actor: { type: 'string' },
         occurred_at: { type: 'string' }, content_type: { type: 'string' }, text: { type: 'string' }, content_text: { type: 'string' }, project_hint: { type: 'string' },
-        sensitivity: { type: 'string' }, language: { type: 'string' }, provenance: { type: 'object' }
+        sensitivity: { type: 'string' }, language: { type: 'string' }, provenance: { type: 'object' }, idempotency_key: { type: 'string' }, correlation_id: { type: 'string' }
       }, required: ['source'], additionalProperties: false
     }, annotations: { ...WRITE_SAFE, idempotentHint: true }
   },
@@ -111,7 +112,7 @@ export const toolDefinitions = [
   { name: 'atlas_run_worker', description: 'Process queued Atlas ingestion events now; stale locks and newly configured connector routes are recovered first.', inputSchema: { type: 'object', properties: { limit: { type: 'integer', minimum: 1, maximum: 100 }, stale_minutes: { type: 'integer', minimum: 1, maximum: 1440 } }, additionalProperties: false }, annotations: WRITE_SAFE },
   { name: 'atlas_retry_routes', description: 'Requeue configured deferred routes and optionally retry failed destination deliveries.', inputSchema: { type: 'object', properties: { include_failed: { type: 'boolean' }, limit: { type: 'integer', minimum: 1, maximum: 500 } }, additionalProperties: false }, annotations: WRITE_SAFE },
   { name: 'atlas_reconcile', description: 'Reconcile automation, recover deterministic stale work, surface degraded sources/routes, and record duplicate/conflict candidates.', inputSchema: { type: 'object', properties: { staleSourceMinutes: { type: 'integer', minimum: 5, maximum: 10080 }, repair: { type: 'boolean' } }, additionalProperties: false }, annotations: WRITE_SAFE },
-  { name: 'atlas_remember', description: 'Submit durable information to Atlas for classification, deduplication, provenance and canonical routing.', inputSchema: { type: 'object', properties: { text: { type: 'string' }, project_hint: { type: 'string' }, sensitivity: { type: 'string' }, source: { type: 'string' } }, required: ['text'], additionalProperties: false }, annotations: WRITE_SAFE },
+  { name: 'atlas_remember', description: 'Submit durable information to Atlas for classification, deduplication, provenance and canonical routing.', inputSchema: { type: 'object', properties: { text: { type: 'string' }, project_hint: { type: 'string' }, sensitivity: { type: 'string' }, source: { type: 'string' }, idempotency_key: { type: 'string' }, correlation_id: { type: 'string' } }, required: ['text'], additionalProperties: false }, annotations: WRITE_SAFE },
   { name: 'atlas_create_task', description: 'Create a canonical Atlas task through the controlled storage gateway.', inputSchema: { type: 'object', properties: { title: { type: 'string' }, description: { type: 'string' }, project_id: { type: 'string' }, priority: { type: 'integer', minimum: 1, maximum: 5 }, due_at: { type: 'string' }, idempotency_key: { type: 'string' }, correlation_id: { type: 'string' } }, required: ['title'], additionalProperties: false }, annotations: WRITE_SAFE },
   { name: 'atlas_update_task', description: 'Update a canonical Atlas task through the controlled storage gateway. Omitted fields are preserved; nullable fields can be cleared with null.', inputSchema: { type: 'object', properties: { task_id: { type: 'string' }, title: { type: ['string','null'] }, description: { type: ['string','null'] }, status: { type: 'string', enum: ['pending', 'in_progress', 'done', 'waiting', 'cancelled'] }, priority: { type: 'integer', minimum: 1, maximum: 5 }, project_id: { type: ['string','null'] }, due_at: { type: ['string','null'] }, scheduled_start: { type: ['string','null'] }, scheduled_end: { type: ['string','null'] }, blocker: { type: ['string','null'] }, idempotency_key: { type: 'string' }, correlation_id: { type: 'string' } }, required: ['task_id'], additionalProperties: false }, annotations: WRITE_SAFE },
   { name: 'atlas_update_project', description: 'Update an existing canonical Atlas project without bypassing storage and ingestion rules.', inputSchema: { type: 'object', properties: { project_id: { type: 'string' }, status: { type: 'string' }, priority: { type: 'integer', minimum: 1, maximum: 5 }, next_action: { type: ['string','null'] }, blockers: { type: ['string','null'] }, objective: { type: ['string','null'] }, idempotency_key: { type: 'string' }, correlation_id: { type: 'string' } }, required: ['project_id'], additionalProperties: false }, annotations: WRITE_SAFE }
@@ -137,21 +138,27 @@ export async function dispatchTool(name, args = {}) {
     case 'atlas_control_plane_activity': return getControlPlaneActivity(args);
     case 'atlas_critic_qa': return runCriticQA(args);
     case 'atlas_critic_qa_record': return criticAndRecord(args);
-    case 'atlas_ingest': return ingestEvent({
-      source: args.source,
-      source_event_id: args.source_event_id,
-      thread_id: args.thread_id,
-      session_id: args.session_id,
-      actor: args.actor || 'codex',
-      occurred_at: args.occurred_at,
-      content_type: args.content_type || 'text',
-      content_text: args.text,
-      project_hint: args.project_hint,
-      sensitivity: args.sensitivity,
-      language: args.language,
-      provenance: args.provenance || {}
-    });
-    case 'atlas_enqueue': return enqueueSourceEvent({ ...args, content_text: args.content_text || args.text, actor: args.actor || 'codex' });
+    case 'atlas_ingest': {
+      const input = withMutationMetadata(args, { operation: 'atlas_ingest', defaultActor: 'codex' });
+      return ingestEvent({
+        source: input.source,
+        source_event_id: input.source_event_id,
+        thread_id: input.thread_id,
+        session_id: input.session_id,
+        actor: input.actor,
+        occurred_at: input.occurred_at,
+        content_type: input.content_type || 'text',
+        content_text: input.text,
+        project_hint: input.project_hint,
+        sensitivity: input.sensitivity,
+        language: input.language,
+        provenance: input.provenance || {}
+      });
+    }
+    case 'atlas_enqueue': {
+      const input = withMutationMetadata(args, { operation: 'atlas_enqueue', defaultActor: 'codex' });
+      return enqueueSourceEvent({ ...input, content_text: input.content_text || input.text, actor: input.actor });
+    }
     case 'atlas_automation_status': return getAutomationStatus();
     case 'atlas_run_worker': return processQueuedEvents({ limit: args.limit || 25, stale_minutes: args.stale_minutes || 10 });
     case 'atlas_retry_routes': return retryRoutes({ include_failed: args.include_failed !== false, limit: args.limit || 100 });
