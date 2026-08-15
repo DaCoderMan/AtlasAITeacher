@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { mergeMutationProvenance, mutationAuditEnvelope, mutationSourceEventId, withMutationMetadata } from '../lib/mutation-metadata.js';
+import { extractCursorCheckpoint } from '../lib/auto-ingest.js';
 
 test('mutationSourceEventId is deterministic for idempotent writes', () => {
   assert.equal(mutationSourceEventId('atlas_remember', 'abc123'), 'mutation:atlas_remember:abc123');
@@ -54,4 +55,19 @@ test('mutationAuditEnvelope captures before after changed fields and rollback gu
   assert.equal(audit.verification_status, 'canonical_write_committed');
   assert.deepEqual(audit.changed_fields, ['status', 'title']);
   assert.equal(audit.rollback_note, 'Restore before_state on failure.');
+});
+
+test('extractCursorCheckpoint reads cursor provenance for durable sync state', () => {
+  const checkpoint = extractCursorCheckpoint({
+    source: 'notion',
+    provenance: {
+      cursor: 'cursor-2',
+      cursor_state: { page: 2, mode: 'pull' }
+    }
+  });
+  assert.deepEqual(checkpoint, {
+    connector: 'notion',
+    cursor: 'cursor-2',
+    state: { page: 2, mode: 'pull' }
+  });
 });
