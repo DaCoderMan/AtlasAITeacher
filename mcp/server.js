@@ -28,6 +28,7 @@ import { checkSystemHealth, closeSystemHealthPool } from '../lib/system-health.j
 import { getAtlasDashboard } from '../lib/dashboard.js';
 import { runCriticQA } from '../lib/critic.js';
 import { capabilitySnapshot } from '../lib/capability-lifecycle.js';
+import { listConnectorTestPlans } from '../lib/connector-tests.js';
 import {
   routeAndRecord,
   criticAndRecord,
@@ -74,6 +75,7 @@ export const toolDefinitions = [
   { name: 'atlas_context', description: 'Load relevant canonical Atlas project context, tasks, recent extractions, and optional search results.', inputSchema: { type: 'object', properties: { project: { type: 'string' }, query: { type: 'string' }, limit: { type: 'integer', minimum: 1, maximum: 100 } }, additionalProperties: false }, annotations: READ_ONLY },
   { name: 'atlas_status', description: 'Get compact Atlas operational status: project/task counts, routing counts, and highest-priority open tasks.', inputSchema: { type: 'object', properties: {}, additionalProperties: false }, annotations: READ_ONLY },
   { name: 'atlas_connectors', description: 'List canonical connector installation records with auth state, scopes, capabilities, risk classes, health and remediation.', inputSchema: { type: 'object', properties: { include_unconfigured: { type: 'boolean' } }, additionalProperties: false }, annotations: READ_ONLY },
+  { name: 'atlas_connector_test_matrix', description: 'List canonical safe connector verification plans including harmless read probes, optional reversible write probes and cleanup verification requirements.', inputSchema: { type: 'object', properties: {}, additionalProperties: false }, annotations: READ_ONLY },
   { name: 'atlas_projects', description: 'List canonical Atlas projects, optionally filtered by status.', inputSchema: { type: 'object', properties: { status: { type: 'string' }, limit: { type: 'integer', minimum: 1, maximum: 100 } }, additionalProperties: false }, annotations: READ_ONLY },
   { name: 'atlas_tasks', description: 'List canonical Atlas tasks, optionally filtered by status or project.', inputSchema: { type: 'object', properties: { status: { type: 'string' }, project_id: { type: 'string' }, limit: { type: 'integer', minimum: 1, maximum: 100 } }, additionalProperties: false }, annotations: READ_ONLY },
   { name: 'atlas_manifests', description: 'List Atlas Project Manifest v1 records or retrieve one by ID, slug, or name.', inputSchema: { type: 'object', properties: { project: { type: 'string' } }, additionalProperties: false }, annotations: READ_ONLY },
@@ -131,6 +133,7 @@ export async function dispatchTool(name, args = {}) {
     case 'atlas_context': return atlasContext(args);
     case 'atlas_status': return atlasStatus();
     case 'atlas_connectors': return atlasConnectors(args);
+    case 'atlas_connector_test_matrix': return listConnectorTestPlans();
     case 'atlas_projects': return atlasProjects(args);
     case 'atlas_tasks': return atlasTasks(args);
     case 'atlas_manifests': return args.project ? getProjectManifest(args.project) : listProjectManifests();
