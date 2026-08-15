@@ -29,7 +29,7 @@ import { getAtlasDashboard } from '../lib/dashboard.js';
 import { runCriticQA } from '../lib/critic.js';
 import { capabilitySnapshot } from '../lib/capability-lifecycle.js';
 import { listConnectorTestPlans } from '../lib/connector-tests.js';
-import { buildSessionContextEnvelope } from '../lib/session-bootstrap.js';
+import { buildResumedSessionEnvelope, buildSessionContextEnvelope } from '../lib/session-bootstrap.js';
 import {
   startExecutionRun,
   getExecutionRun,
@@ -62,7 +62,10 @@ const contextSchema = {
   properties: {
     explicit_project: { type: 'string' }, active_project: { type: 'string' }, conversation_project: { type: 'string' },
     canonical_project: { type: 'string' }, global_project: { type: 'string' }, modality: { type: 'string', enum: ['text', 'voice'] },
-    last_verified_at: { type: 'string' }
+    last_verified_at: { type: 'string' },
+    client_type: { type: 'string', enum: ['codex', 'chatgpt', 'api', 'unknown'] },
+    auth_mode: { type: 'string', enum: ['oauth', 'legacy-secret', 'read_only', 'unauthenticated', 'unknown'] },
+    client_label: { type: 'string' }
   },
   additionalProperties: false
 };
@@ -105,7 +108,7 @@ export const toolDefinitions = [
   { name: 'atlas_status', description: 'Get compact Atlas operational status: project/task counts, routing counts, and highest-priority open tasks.', inputSchema: { type: 'object', properties: {}, additionalProperties: false }, annotations: READ_ONLY },
   { name: 'atlas_connectors', description: 'List canonical connector installation records with auth state, scopes, capabilities, risk classes, health and remediation.', inputSchema: { type: 'object', properties: { include_unconfigured: { type: 'boolean' } }, additionalProperties: false }, annotations: READ_ONLY },
   { name: 'atlas_connector_test_matrix', description: 'List canonical safe connector verification plans including harmless read probes, optional reversible write probes and cleanup verification requirements.', inputSchema: { type: 'object', properties: {}, additionalProperties: false }, annotations: READ_ONLY },
-  { name: 'atlas_session_bootstrap', description: 'Return a versioned SessionContextEnvelope resolving project scope, goals, memory summary, capability snapshot, approval policy and freshness warnings.', inputSchema: { type: 'object', properties: { explicit_project: { type: 'string' }, active_project: { type: 'string' }, conversation_project: { type: 'string' }, canonical_project: { type: 'string' }, global_project: { type: 'string' }, modality: { type: 'string', enum: ['text', 'voice'] }, last_verified_at: { type: 'string' } }, additionalProperties: false }, annotations: READ_ONLY },
+  { name: 'atlas_session_bootstrap', description: 'Return a versioned SessionContextEnvelope resolving project scope, goals, memory summary, capability snapshot, client capability envelope, approval policy and freshness warnings.', inputSchema: contextSchema, annotations: READ_ONLY },
   { name: 'atlas_projects', description: 'List canonical Atlas projects, optionally filtered by status.', inputSchema: { type: 'object', properties: { status: { type: 'string' }, limit: { type: 'integer', minimum: 1, maximum: 100 } }, additionalProperties: false }, annotations: READ_ONLY },
   { name: 'atlas_tasks', description: 'List canonical Atlas tasks, optionally filtered by status or project.', inputSchema: { type: 'object', properties: { status: { type: 'string' }, project_id: { type: 'string' }, limit: { type: 'integer', minimum: 1, maximum: 100 } }, additionalProperties: false }, annotations: READ_ONLY },
   { name: 'atlas_manifests', description: 'List Atlas Project Manifest v1 records or retrieve one by ID, slug, or name.', inputSchema: { type: 'object', properties: { project: { type: 'string' } }, additionalProperties: false }, annotations: READ_ONLY },
@@ -117,7 +120,7 @@ export const toolDefinitions = [
   { name: 'atlas_system_health_record', description: 'Live-check Atlas dependencies and persist the health observations.', inputSchema: { type: 'object', properties: { timeout_ms: { type: 'integer', minimum: 250, maximum: 10000 } }, additionalProperties: false }, annotations: WRITE_SAFE },
   { name: 'atlas_today', description: 'Generate an explainable next-action plan from canonical projects/tasks and verified scheduled task commitments.', inputSchema: { type: 'object', properties: { now: { type: 'string' }, active_project_id: { type: 'string' } }, additionalProperties: false }, annotations: READ_ONLY },
   { name: 'atlas_today_record', description: 'Generate and persist today’s explainable Atlas plan.', inputSchema: { type: 'object', properties: { now: { type: 'string' }, active_project_id: { type: 'string' }, max_major_wip: { type: 'integer', minimum: 1, maximum: 10 } }, additionalProperties: false }, annotations: WRITE_SAFE },
-  { name: 'atlas_resume_session', description: 'Resume a versioned Atlas session by session ID or resume handle.', inputSchema: { type: 'object', properties: { session_id: { type: 'string' }, resume_handle: { type: 'string' } }, additionalProperties: false }, annotations: READ_ONLY },
+  { name: 'atlas_resume_session', description: 'Resume a versioned Atlas session by session ID or resume handle together with the current client capability envelope.', inputSchema: { type: 'object', properties: { session_id: { type: 'string' }, resume_handle: { type: 'string' }, client_type: { type: 'string', enum: ['codex', 'chatgpt', 'api', 'unknown'] }, auth_mode: { type: 'string', enum: ['oauth', 'legacy-secret', 'read_only', 'unauthenticated', 'unknown'] }, client_label: { type: 'string' }, modality: { type: 'string', enum: ['text', 'voice'] } }, additionalProperties: false }, annotations: READ_ONLY },
   { name: 'atlas_checkpoint_session', description: 'Persist a versioned session checkpoint with optimistic session-version checks, durable delta, expected canonical version, causal links and unfinished-work handle.', inputSchema: { type: 'object', properties: { session_id: { type: 'string' }, expected_session_version: { type: 'integer' }, expected_canonical_version: { type: 'integer' }, project_key: { type: 'string' }, context: { type: 'object' }, delta: { type: 'object' }, checkpoint_state: { type: 'object' }, conflict_state: { type: 'object' }, causal_links: { type: 'array', items: { type: 'object' } }, unfinished_handle: { type: 'string' } }, additionalProperties: false }, annotations: WRITE_SAFE },
   { name: 'atlas_list_execution_runs', description: 'List canonical execution runs with status, revision, progress counters and resume handles.', inputSchema: { type: 'object', properties: { status: { type: 'string' }, active_only: { type: 'boolean' }, limit: { type: 'integer', minimum: 1, maximum: 100 } }, additionalProperties: false }, annotations: READ_ONLY },
   { name: 'atlas_get_execution_run', description: 'Load one canonical execution run including ordered steps, progress and recent run events.', inputSchema: { type: 'object', properties: { run_id: { type: 'string' }, run_key: { type: 'string' }, run_revision: { type: 'integer', minimum: 1 }, resume_handle: { type: 'string' } }, additionalProperties: false }, annotations: READ_ONLY },
@@ -195,7 +198,11 @@ export async function dispatchTool(name, args = {}) {
     case 'atlas_system_health_record': return healthAndRecord(args);
     case 'atlas_today': return (await getAtlasDashboard(args)).today;
     case 'atlas_today_record': return todayAndRecord(args);
-    case 'atlas_resume_session': return resumeSession(args);
+    case 'atlas_resume_session': {
+      const capability_snapshot = localCapabilitySnapshot();
+      const resumed_session = await resumeSession(args);
+      return buildResumedSessionEnvelope({ resumed_session, input: args, capability_snapshot });
+    }
     case 'atlas_checkpoint_session': return checkpointSession(args);
     case 'atlas_list_execution_runs': return listExecutionRuns(args);
     case 'atlas_get_execution_run': return getExecutionRun(args);

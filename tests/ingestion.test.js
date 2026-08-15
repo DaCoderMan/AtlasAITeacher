@@ -1,6 +1,13 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { annotateExtractionStructured, buildIngestionProvenance, classifyEvent, routingPlan } from '../lib/ingestion.js';
+import {
+  annotateExtractionStructured,
+  buildIngestionProvenance,
+  classifyEvent,
+  privacyClassForEvent,
+  routePrivacyMetadata,
+  routingPlan
+} from '../lib/ingestion.js';
 
 test('classifies task and project update from one interaction', () => {
   const result = classifyEvent({
@@ -76,6 +83,8 @@ test('ingestion provenance stamps v2 metadata and supersession lineage', () => {
   assert.equal(provenance.extractor_version, 'atlas-ingestion-v2.2026-08-15');
   assert.equal(provenance.source_event_key, 'github:evt-1');
   assert.equal(provenance.source_content_hash, 'hash-1');
+  assert.equal(provenance.privacy_class, 'internal');
+  assert.equal(provenance.retention_class, 'durable');
   assert.equal(provenance.revision_count, 3);
   assert.equal(provenance.supersedes.revision_id, 'rev-1');
   assert.equal(provenance.original_id, 'evt-1');
@@ -87,14 +96,51 @@ test('annotated extraction metadata carries duplicate cluster and pending route 
     eventId: 'event-1',
     sourceEventKey: 'github:evt-1',
     duplicateCluster: 'engineering_artifact:cluster-1',
-    routeDestinations: ['neon', 'github']
+    routeReceipts: [
+      { destination: 'neon', status: 'pending', privacy_class: 'internal', retention_class: 'durable', allowed_destinations: ['neon', 'github'], deletion_policy: 'canonical_authority', tombstone_required: false, external_ref_cleanup_required: false },
+      { destination: 'github', status: 'pending', privacy_class: 'internal', retention_class: 'durable', allowed_destinations: ['neon', 'github'], deletion_policy: 'source_tombstone_then_external_cleanup', tombstone_required: true, external_ref_cleanup_required: true }
+    ]
   });
   assert.equal(structured.repository, 'AtlasAITeacher');
   assert.equal(structured._atlas.derived_from_event_id, 'event-1');
   assert.equal(structured._atlas.source_event_key, 'github:evt-1');
   assert.equal(structured._atlas.duplicate_cluster, 'engineering_artifact:cluster-1');
   assert.deepEqual(structured._atlas.route_receipts, [
-    { destination: 'neon', status: 'pending' },
-    { destination: 'github', status: 'pending' }
+    {
+      destination: 'neon',
+      status: 'pending',
+      privacy_class: 'internal',
+      retention_class: 'durable',
+      allowed_destinations: ['neon', 'github'],
+      deletion_policy: 'canonical_authority',
+      tombstone_required: false,
+      external_ref_cleanup_required: false
+    },
+    {
+      destination: 'github',
+      status: 'pending',
+      privacy_class: 'internal',
+      retention_class: 'durable',
+      allowed_destinations: ['neon', 'github'],
+      deletion_policy: 'source_tombstone_then_external_cleanup',
+      tombstone_required: true,
+      external_ref_cleanup_required: true
+    }
   ]);
+});
+
+test('privacy metadata keeps restricted content local-only', () => {
+  assert.equal(privacyClassForEvent({ sensitivity: 'restricted' }), 'sensitive');
+  assert.deepEqual(
+    routePrivacyMetadata({ sensitivity: 'restricted' }, ['neon', 'notion'], 'notion'),
+    {
+      privacy_class: 'sensitive',
+      retention_class: 'local_only',
+      allowed_destinations: ['neon'],
+      deletion_policy: 'source_tombstone_then_external_cleanup',
+      tombstone_required: true,
+      external_ref_cleanup_required: true,
+      local_only_enforced: true
+    }
+  );
 });

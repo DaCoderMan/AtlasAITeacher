@@ -1,7 +1,13 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { buildExecutionProgress, latestActiveRunRevisions, latestRunRevisions, normalizeExecutionRunbook } from '../lib/execution-runs.js';
+import {
+  buildExecutionProgress,
+  executionStepEvidenceState,
+  latestActiveRunRevisions,
+  latestRunRevisions,
+  normalizeExecutionRunbook
+} from '../lib/execution-runs.js';
 
 test('normalizeExecutionRunbook validates unique dependencies and preserves ordered steps', () => {
   const runbook = normalizeExecutionRunbook({
@@ -54,6 +60,17 @@ test('latestActiveRunRevisions ignores stale active revisions when a newer revis
     { id: 'other-active', run_key: 'another-run', run_revision: 1, status: 'blocked', updated_at: '2026-08-15T10:00:00.000Z' }
   ]);
   assert.deepEqual(latest.map(run => run.id), ['other-active']);
+});
+
+test('execution step evidence state reports missing required evidence ids', () => {
+  const state = executionStepEvidenceState({
+    evidence_requirements_json: { required_ids: ['commit', 'tests', 'deployment'] },
+    evidence_ids_json: ['commit', 'tests']
+  });
+  assert.deepEqual(state.required_evidence_ids, ['commit', 'tests', 'deployment']);
+  assert.deepEqual(state.recorded_evidence_ids, ['commit', 'tests']);
+  assert.deepEqual(state.missing_evidence_ids, ['deployment']);
+  assert.equal(state.completion_ready, false);
 });
 
 test('codex x runbook v2 is machine-readable, deduplicated, and ordered', () => {

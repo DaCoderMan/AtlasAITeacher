@@ -86,6 +86,8 @@ test('session bootstrap tool is read-only and accepts scoped context inputs only
   assert.equal(tool.inputSchema.additionalProperties, false);
   assert.equal(tool.inputSchema.properties.explicit_project.type, 'string');
   assert.deepEqual(tool.inputSchema.properties.modality.enum, ['text', 'voice']);
+  assert.deepEqual(tool.inputSchema.properties.client_type.enum, ['codex', 'chatgpt', 'api', 'unknown']);
+  assert.deepEqual(tool.inputSchema.properties.auth_mode.enum, ['oauth', 'legacy-secret', 'read_only', 'unauthenticated', 'unknown']);
 });
 
 test('session checkpoint tools expose bounded checkpoint and resume fields', () => {
@@ -94,6 +96,7 @@ test('session checkpoint tools expose bounded checkpoint and resume fields', () 
   assert.equal(resume.annotations.readOnlyHint, true);
   assert.equal(checkpoint.annotations.readOnlyHint, false);
   assert.equal(resume.inputSchema.properties.session_id.type, 'string');
+  assert.deepEqual(resume.inputSchema.properties.client_type.enum, ['codex', 'chatgpt', 'api', 'unknown']);
   assert.equal(checkpoint.inputSchema.properties.expected_session_version.type, 'integer');
   assert.equal(checkpoint.inputSchema.properties.expected_canonical_version.type, 'integer');
   assert.equal(checkpoint.inputSchema.properties.delta.type, 'object');
