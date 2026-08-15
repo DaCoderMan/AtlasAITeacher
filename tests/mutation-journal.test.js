@@ -22,5 +22,7 @@ test('route executor and reconciliation persist mutation journal events for auto
   assert.match(routeExecutor, /operation: 'atlas_connector_write'/);
   assert.match(routeExecutor, /function checksum\(value\)/);
   assert.match(routeExecutor, /destination_checksum: destinationChecksum/);
+  assert.match(routeExecutor, /policy\.decision === 'persist_private'/);
+  assert.match(routeExecutor, /sensitive_content_requires_local_only/);
   assert.match(reconciliation, /operation: 'atlas_reconcile'/);
 });
