@@ -13,6 +13,13 @@ import {
   atlasRemember,
   closeAtlasStorePool
 } from '../lib/atlas-store.js';
+import {
+  createLearningItem,
+  getDueReviews,
+  submitReview,
+  getLearningMetrics,
+  closeLearningPool
+} from '../lib/learning-engine.js';
 import { ingestEvent } from '../lib/ingestion.js';
 import { enqueueSourceEvent, processQueuedEvents, getAutomationStatus, closeAutoIngestPool } from '../lib/auto-ingest.js';
 import { reconcileAtlas, closeReconciliationPool } from '../lib/reconciliation.js';
@@ -46,6 +53,47 @@ export const toolDefinitions = [
     name: 'atlas_tasks',
     description: 'Use this to list canonical Atlas tasks, optionally filtered by status or project.',
     inputSchema: { type: 'object', properties: { status: { type: 'string' }, project_id: { type: 'string' }, limit: { type: 'integer', minimum: 1, maximum: 100 } }, additionalProperties: false },
+    annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false }
+  },
+  {
+    name: 'atlas_learning_create_item',
+    description: 'Create a durable atomic learning item for active recall and adaptive spaced review. Use after teaching or when durable knowledge is identified.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        domain: { type: 'string' }, objective: { type: 'string' }, prompt: { type: 'string' }, canonical_answer: { type: 'string' },
+        rubric: { type: 'object' }, item_type: { type: 'string' }, importance: { type: 'integer', minimum: 1, maximum: 5 },
+        desired_retention: { type: 'number', minimum: 0.7, maximum: 0.99 }, provenance: { type: 'object' }
+      },
+      required: ['domain','prompt'], additionalProperties: false
+    },
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false }
+  },
+  {
+    name: 'atlas_learning_due_reviews',
+    description: 'Return learning items due now. Atlas should ask for retrieval before revealing answers.',
+    inputSchema: { type: 'object', properties: { domain: { type: 'string' }, limit: { type: 'integer', minimum: 1, maximum: 100 } }, additionalProperties: false },
+    annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false }
+  },
+  {
+    name: 'atlas_learning_submit_review',
+    description: 'Record a retrieval attempt, confidence, correctness, transfer, errors, and schedule the next adaptive review.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        item_id: { type: 'string' }, rating: { type: 'string', enum: ['again','hard','good','easy'] },
+        response_text: { type: 'string' }, correctness: { type: 'number', minimum: 0, maximum: 1 }, latency_ms: { type: 'integer', minimum: 0 },
+        confidence: { type: 'integer', minimum: 0, maximum: 100 }, transfer_score: { type: 'number', minimum: 0, maximum: 1 },
+        error_tags: { type: 'array', items: { type: 'string' } }, grader_model: { type: 'string' }, metadata: { type: 'object' }
+      },
+      required: ['item_id','rating'], additionalProperties: false
+    },
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false }
+  },
+  {
+    name: 'atlas_learning_metrics',
+    description: 'Read learning quality metrics including correctness, transfer, confidence calibration proxy, and retrieval latency.',
+    inputSchema: { type: 'object', properties: { domain: { type: 'string' } }, additionalProperties: false },
     annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false }
   },
   {
@@ -121,6 +169,10 @@ export async function dispatchTool(name, args = {}) {
     case 'atlas_status': return atlasStatus();
     case 'atlas_projects': return atlasProjects(args);
     case 'atlas_tasks': return atlasTasks(args);
+    case 'atlas_learning_create_item': return createLearningItem(args);
+    case 'atlas_learning_due_reviews': return getDueReviews(args);
+    case 'atlas_learning_submit_review': return submitReview(args);
+    case 'atlas_learning_metrics': return getLearningMetrics(args);
     case 'atlas_ingest': return ingestEvent({
       source: args.source,
       source_event_id: args.source_event_id,
@@ -170,8 +222,8 @@ async function handle(message) {
       result: {
         protocolVersion: message.params?.protocolVersion || '2025-06-18',
         capabilities: { tools: { listChanged: false } },
-        serverInfo: { name: 'atlas', version: '1.1.0' },
-        instructions: 'Atlas is the canonical context, persistence, and automatic-ingestion gateway. Read context before significant work; send meaningful outcomes through Atlas; check automation status when source ingestion matters.'
+        serverInfo: { name: 'atlas', version: '1.3.0' },
+        instructions: 'Atlas is a Life OS and AI Teacher. Read context before significant work. For learning, retrieve before revealing answers, capture confidence and errors, measure transfer, and schedule durable review. Protect WIP and finished output.'
       }
     });
     return;
@@ -205,7 +257,7 @@ if (isDirectExecution()) {
     catch (error) { send({ jsonrpc: '2.0', id: null, error: { code: -32700, message: error?.message || 'Parse error' } }); }
   });
   const shutdown = async () => {
-    await Promise.allSettled([closeAtlasStorePool(), closeAutoIngestPool(), closeReconciliationPool()]);
+    await Promise.allSettled([closeAtlasStorePool(), closeLearningPool(), closeAutoIngestPool(), closeReconciliationPool()]);
     process.exit(0);
   };
   rl.on('close', shutdown);
