@@ -7,3 +7,4 @@ atlas-inbox/
 *.log
 .vercel
 .env*
+/work/atlas-mcp-upgrade/
