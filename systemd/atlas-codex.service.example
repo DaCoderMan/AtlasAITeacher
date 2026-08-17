@@ -1,0 +1,20 @@
+[Unit]
+Description=Atlas Codex local worker
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=%h/AtlasAITeacher
+EnvironmentFile=%h/.config/atlas-codex/env
+ExecStart=/usr/bin/env node scripts/atlas-codex.js watch
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=%h/AtlasAITeacher
+
+[Install]
+WantedBy=default.target
