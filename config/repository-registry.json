@@ -11,12 +11,7 @@
       "role": "Atlas core control plane, ingestion, learning, remote MCP surface",
       "local_workdir": null,
       "deployment_target": null,
-      "verification": {
-        "repository": "verified",
-        "branches": "verified",
-        "local_workdir": "unverified",
-        "deployment_target": "unverified"
-      }
+      "verification": {"repository":"verified","branches":"verified","local_workdir":"unverified","deployment_target":"unverified"}
     },
     {
       "project_key": "atlas-mcp",
@@ -26,17 +21,43 @@
       "role": "Atlas MCP/runtime execution and durable run tracking",
       "local_workdir": null,
       "deployment_target": null,
-      "verification": {
-        "repository": "verified",
-        "branches": "verified",
-        "local_workdir": "unverified",
-        "deployment_target": "unverified"
-      }
+      "verification": {"repository":"verified","branches":"verified","local_workdir":"unverified","deployment_target":"unverified"}
+    },
+    {
+      "project_key": "magic-cloud-storage",
+      "repository": "DaCoderMan/magiccloudstorage",
+      "default_branch": "main",
+      "active_feature_branch": null,
+      "role": "Durable storage, retrieval, versions, audit and connector-facing data services",
+      "local_workdir": null,
+      "deployment_target": null,
+      "verification": {"repository":"verified","branches":"default-only-verified","local_workdir":"unverified","deployment_target":"unverified"}
+    },
+    {
+      "project_key": "magic-cloud-llm",
+      "repository": "DaCoderMan/magiccloudllm",
+      "default_branch": "main",
+      "active_feature_branch": null,
+      "role": "Provider-neutral LLM routing layer",
+      "local_workdir": null,
+      "deployment_target": null,
+      "verification": {"repository":"verified-empty","branches":"default-only-verified","local_workdir":"unverified","deployment_target":"unverified"}
+    },
+    {
+      "project_key": "mage-agent-factory",
+      "repository": "DaCoderMan/mageagentfactory2",
+      "default_branch": "main",
+      "active_feature_branch": null,
+      "role": "Agent manifests, governance, secrets-by-reference and security policy",
+      "local_workdir": null,
+      "deployment_target": null,
+      "verification": {"repository":"verified","branches":"default-only-verified","local_workdir":"unverified","deployment_target":"unverified"}
     }
   ],
   "rules": [
     "Never infer a local working directory or deployment target from repository metadata.",
     "Do not dispatch destructive or deployment work until repository, branch, workdir and target are verified.",
+    "Do not treat an empty repository as an implemented service.",
     "Update this execution artifact only after corresponding canonical Atlas/Neon state is reconciled."
   ]
 }
