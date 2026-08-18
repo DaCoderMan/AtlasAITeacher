@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "updated_at": "2026-08-18T20:24:00+03:00",
+  "authority": "Atlas/Neon canonical structured state; this file is an execution artifact",
+  "repositories": [
+    {
+      "project_key": "atlas-core",
+      "repository": "DaCoderMan/AtlasAITeacher",
+      "default_branch": "main",
+      "active_feature_branch": "atlas/complete-v2",
+      "role": "Atlas core control plane, ingestion, learning, remote MCP surface",
+      "local_workdir": null,
+      "deployment_target": null,
+      "verification": {
+        "repository": "verified",
+        "branches": "verified",
+        "local_workdir": "unverified",
+        "deployment_target": "unverified"
+      }
+    },
+    {
+      "project_key": "atlas-mcp",
+      "repository": "DaCoderMan/atlas-mcp",
+      "default_branch": "main",
+      "active_feature_branch": "atlas-complete-v2",
+      "role": "Atlas MCP/runtime execution and durable run tracking",
+      "local_workdir": null,
+      "deployment_target": null,
+      "verification": {
+        "repository": "verified",
+        "branches": "verified",
+        "local_workdir": "unverified",
+        "deployment_target": "unverified"
+      }
+    }
+  ],
+  "rules": [
+    "Never infer a local working directory or deployment target from repository metadata.",
+    "Do not dispatch destructive or deployment work until repository, branch, workdir and target are verified.",
+    "Update this execution artifact only after corresponding canonical Atlas/Neon state is reconciled."
+  ]
+}
