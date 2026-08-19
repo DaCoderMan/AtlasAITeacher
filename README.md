@@ -16,6 +16,20 @@ This repository contains the core Atlas application logic and is the primary imp
 
 Specialized reusable capabilities should remain in their dedicated repositories instead of being duplicated here. Current examples include `atlas-mcp`, `mageagentfactory2`, `magiccloudstorage`, `magiccloudllm`, `Magic-Voice-Module`, and `custom-gpt-cloud`.
 
+## Atlas Learning Arcade durable progress
+
+Atlas Games uses Neon as the canonical player-progress store. The write path is `POST /api/game-round`; exact resume state is read through `GET /api/game-progress`.
+
+Rules:
+- every completed round carries a stable `event_id` idempotency key;
+- the round event and aggregate progress update occur transactionally;
+- duplicate delivery of the same event must not double-award XP or advance state twice;
+- a successful write is followed by canonical readback before `saved: true` is returned;
+- persistence errors return `saved: false`; conversational state alone is never proof that progress was saved;
+- `ATLAS_GAME_SECRET` is preferred for the game endpoints, with `ATLAS_INGEST_SECRET` accepted as a compatibility fallback; secret values never belong in Git.
+
+The implementation requires Learning Arcade migrations `004_learning_arcade.sql` and `005_learning_arcade_round_integrity.sql` to be applied through the governed migration workflow before live use.
+
 ## Project X Neon → Notion sync
 
 One implemented capability is the protected Project X sync. Neon `workitu-db / neondb` is the canonical structured project store. The endpoint `GET|POST /api/project-x-sync` reads non-deleted projects in `active`, `waiting`, or `later` state, normalizes duplicate names, orders them by priority, and replaces the contents of the dedicated Notion mirror page.
