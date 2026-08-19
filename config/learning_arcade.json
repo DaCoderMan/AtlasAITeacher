@@ -1,0 +1,35 @@
+{
+  "version": "2026-08-19",
+  "catalog": [
+    {"slug":"ai-social-media-money","title":"AI Social Media Money","category":"business-learning","status":"active","unlimited_duration":false},
+    {"slug":"ai-tech-commander-israel","title":"AI Tech Commander: Israel","category":"ai-learning","status":"active","unlimited_duration":false},
+    {"slug":"longevity-quest","title":"Longevity Quest","category":"health-learning","status":"active","unlimited_duration":false},
+    {"slug":"money-bridge-israel-brasil","title":"Money Bridge: Israel ↔ Brasil","category":"finance-learning","status":"active","unlimited_duration":false},
+    {"slug":"digital-charisma","title":"Digital Charisma","category":"social-learning","status":"active","unlimited_duration":false},
+    {"slug":"milan-life-builder","title":"Milan: Life Builder","category":"family-learning","status":"active","unlimited_duration":false},
+    {"slug":"aws-architect-quest-saa-c03","title":"AWS Architect Quest","subtitle":"AWS Certified Solutions Architect – Associate","category":"certification","certification_provider":"AWS","certification_code":"SAA-C03","status":"active","unlimited_duration":true,"default_xp_cap":null},
+    {"slug":"nvidia-genai-quest-nca-genl","title":"NVIDIA GenAI Quest","subtitle":"NVIDIA-Certified Associate Generative AI LLMs","category":"certification","certification_provider":"NVIDIA","certification_code":"NCA-GENL","status":"active","unlimited_duration":true,"default_xp_cap":null},
+    {"slug":"atlas-productivity-architect","title":"Atlas Productivity Architect","category":"productivity-systems-learning","status":"active","unlimited_duration":true},
+    {"slug":"hebrew-magic-2","title":"Hebrew Magic 2","category":"language-learning","status":"active","unlimited_duration":false}
+  ],
+  "global_rules": {
+    "save_after_every_round": true,
+    "next_command": "N",
+    "randomize_correct_answer_position": true,
+    "avoid_answer_length_bias": true,
+    "adaptive_difficulty": true,
+    "active_recall": true,
+    "spaced_repetition": true,
+    "confidence_calibration": true,
+    "error_bank": true,
+    "transfer_score": true,
+    "boss_battles": true,
+    "real_world_transfer": true
+  },
+  "storage": {
+    "operational_state": "Neon/PostgreSQL",
+    "code_and_versioned_specs": "GitHub",
+    "human_readable_master_backup": "Google Drive",
+    "large_graphics": "Drive/object storage; GitHub stores manifests and metadata"
+  }
+}
