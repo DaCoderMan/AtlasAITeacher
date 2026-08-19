@@ -2,7 +2,7 @@ name: Atlas CI
 
 on:
   push:
-    branches: [main, 'atlas/**']
+    branches: [main, 'atlas/**', 'fix/**', 'hardening/**']
   pull_request:
     branches: [main]
 
